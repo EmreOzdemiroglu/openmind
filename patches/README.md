@@ -12,3 +12,4 @@ There is no runtime patch loader and no additional binary dependency.
 See [the patch workflow](../docs/patches.md) to apply, remove, or publish a patch, and [the core
 migration contract](../docs/core.md) for architectural boundaries and extraction criteria.
 | [keep-awake](keep-awake/README.md) | Inhibit system idle sleep while model turns are running. |
+| [clipboard-capture](clipboard-capture/README.md) | Capture images and text from clipboard via Ctrl-V in REPL. |

@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "feature": "clipboard-capture",
+  "revision": 1,
+  "base_commit": "02d3afa400540176ba1eba1a2ec6f4251fdd9560",
+  "diff": "hax-clipboard-capture-20260911-02d3afa.diff",
+  "sha256": "101bbbdbd312ca94007add8acb3ec847fa4a2d991144af8e260f5ab7cf71c2d3",
+  "requires": [],
+  "conflicts": [],
+  "status": "active"
+}

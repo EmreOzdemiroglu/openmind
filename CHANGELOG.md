@@ -38,6 +38,9 @@ notes (see [docs/releasing.md](docs/releasing.md)).
   truncation now keep their suffix, such as a read's line range, like the full header does.
 ### Added
 
+- Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
+  The base binary retains copy and bracketed-paste file URI conversion while omitting platform
+  capture helpers and the Ctrl-V paste hook.
 - Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
   The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
 - Extract desktop notifications into an optional source patch (`notify@1`). The base binary
@@ -56,6 +59,9 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
+  The base binary retains copy and bracketed-paste file URI conversion while omitting platform
+  capture helpers and the Ctrl-V paste hook.
 - Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
   The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
 - Extract desktop notifications into an optional source patch (`notify@1`). The base binary
@@ -123,6 +129,9 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
+  The base binary retains copy and bracketed-paste file URI conversion while omitting platform
+  capture helpers and the Ctrl-V paste hook.
 - Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
   The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
 - Extract desktop notifications into an optional source patch (`notify@1`). The base binary
@@ -193,6 +202,9 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
+  The base binary retains copy and bracketed-paste file URI conversion while omitting platform
+  capture helpers and the Ctrl-V paste hook.
 - Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
   The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
 - Extract desktop notifications into an optional source patch (`notify@1`). The base binary
@@ -239,6 +251,9 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
+  The base binary retains copy and bracketed-paste file URI conversion while omitting platform
+  capture helpers and the Ctrl-V paste hook.
 - Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
   The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
 - Extract desktop notifications into an optional source patch (`notify@1`). The base binary
