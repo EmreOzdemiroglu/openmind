@@ -1,0 +1,294 @@
+diff --git a/docs/configuration.md b/docs/configuration.md
+index 83f8e6a..b4f49df 100644
+--- a/docs/configuration.md
++++ b/docs/configuration.md
+@@ -136,6 +136,7 @@ credential itself in JSON.
+ ```json
+ {
+   "theme": "light",
++  "notify": "off",
+   "display_width": 100
+ }
+ ```
+@@ -236,6 +237,7 @@ provider-dependent.
+ | `sort_models` | `HAX_SORT_MODELS` | `auto` | Sort model picker newest-first (`on`), keep server order (`off`), or use provider default (sorted unless the provider opts out). |
+ | `context_limit` | `HAX_CONTEXT_LIMIT` | auto | Override the model context-window size used for display and compaction. |
+ | `display_width` | `HAX_DISPLAY_WIDTH` | `auto` | `auto`, `terminal`, or an exact width of at least 20 columns. |
++| `notify` | `HAX_NOTIFY` | `auto` | Completion notification: `auto`, `bel`, `osc9`, or `off`. |
+ | `theme` | `HAX_THEME` | `auto` | `auto`, `dark`, `light`, `ansi`, or `off`. |
+ | `tint` | `HAX_TINT` | `teal` | Model-output tint: `teal`, `violet`, `rose`, or `sage`. |
+ | `keep_awake` | `HAX_KEEP_AWAKE` | on | Best-effort idle-sleep inhibition while a turn runs. |
+diff --git a/docs/philosophy.md b/docs/philosophy.md
+index a394c36..4f2f89a 100644
+--- a/docs/philosophy.md
++++ b/docs/philosophy.md
+@@ -48,8 +48,8 @@ process, and another config surface.
+ 
+ Event hooks elsewhere serve a handful of needs, each of which hax answers more directly:
+ 
+-- Notifications when the interactive REPL needs attention: available as an optional
+-  source patch (see [docs/patches.md](patches.md)).
++- Notifications when the interactive REPL needs attention: built in (`notify`), with planned
++  migration to the source patch catalog (see [docs/core.md](core.md)).
+ - Observability and debugging: JSONL sessions record the conversation history — `hax --json`
+   streams the same records live for a driving process — `HAX_TRANSCRIPT` shows the model-facing
+   context, and `HAX_TRACE` captures redacted HTTP/SSE diagnostics.
+diff --git a/meson.build b/meson.build
+index e7912de..1387039 100644
+--- a/meson.build
++++ b/meson.build
+@@ -167,6 +167,7 @@ sources = files(
+     'src/terminal/input.c',
+     'src/terminal/input_core.c',
+     'src/terminal/interrupt.c',
++    'src/terminal/notify.c',
+     'src/terminal/picker.c',
+     'src/terminal/picker_core.c',
+     'src/terminal/theme.c',
+diff --git a/patches/README.md b/patches/README.md
+index 65d5f00..065ecb2 100644
+--- a/patches/README.md
++++ b/patches/README.md
+@@ -7,7 +7,6 @@ There is no runtime patch loader and no additional binary dependency.
+ | Patch | Effect |
+ | --- | --- |
+ | [compact-banner](compact-banner/README.md) | Keep the startup identity row, remove the key tips. |
+-| [notify](notify/README.md) | Emit terminal bell or OSC 9 notification sequences when turns finish. |
+ 
+ See [the patch workflow](../docs/patches.md) to apply, remove, or publish a patch, and [the core
+ migration contract](../docs/core.md) for architectural boundaries and extraction criteria.
+diff --git a/scripts/patch_ci.py b/scripts/patch_ci.py
+index b4d9687..95f2c6b 100755
+--- a/scripts/patch_ci.py
++++ b/scripts/patch_ci.py
+@@ -41,9 +41,7 @@ def resolve_closure(catalog: dict[str, dict[int, dict]], target: str) -> list[tu
+ 
+     def visit(current: str) -> None:
+         if current in visiting:
+-            raise RunnerError(
+-                f"dependency cycle detected while resolving '{target}' at '{current}'"
+-            )
++            raise RunnerError(f"dependency cycle detected while resolving '{target}' at '{current}'")
+         if current in visited:
+             return
+         if current not in entries:
+@@ -68,18 +66,14 @@ def resolve_closure(catalog: dict[str, dict[int, dict]], target: str) -> list[tu
+ 
+     features = [entry["feature"] for _, entry in ordered]
+     if len(features) != len(set(features)):
+-        raise RunnerError(
+-            f"patch '{target}' has more than one revision of a feature in its closure"
+-        )
++        raise RunnerError(f"patch '{target}' has more than one revision of a feature in its closure")
+ 
+     for current, entry in ordered:
+         for other, other_entry in ordered:
+             if current == other:
+                 continue
+             if other_entry["feature"] in entry["conflicts"]:
+-                raise RunnerError(
+-                    f"patch '{current}' conflicts with '{other}' in '{target}' closure"
+-                )
++                raise RunnerError(f"patch '{current}' conflicts with '{other}' in '{target}' closure")
+ 
+     return ordered
+ 
+@@ -96,9 +90,7 @@ def apply_closure(root: Path, worktree: Path, closure: list[tuple[str, dict]]) -
+             run(["git", "apply", "--check", str(diff_path)], worktree)
+             run(["git", "apply", str(diff_path)], worktree)
+         except subprocess.CalledProcessError as error:
+-            raise RunnerError(
+-                f"applying patch '{current}' failed with exit code {error.returncode}"
+-            ) from error
++            raise RunnerError(f"applying patch '{current}' failed with exit code {error.returncode}") from error
+ 
+ 
+ def verify_worktree(
+@@ -134,9 +126,7 @@ def verify_worktree(
+                 )
+ 
+ 
+-def build_plan(
+-    root: Path,
+-) -> tuple[dict[str, dict[int, dict]], list[tuple[str, list[tuple[str, dict]]]]]:
++def build_plan(root: Path) -> tuple[dict[str, dict[int, dict]], list[tuple[str, list[tuple[str, dict]]]]]:
+     catalog = patch_catalog.load_catalog(root, check_commits=True)
+     active = [
+         selector(feature, revision)
+diff --git a/src/agent.c b/src/agent.c
+index 4789b47..6b75d94 100644
+--- a/src/agent.c
++++ b/src/agent.c
+@@ -40,6 +40,7 @@
+ #include "terminal/ansi.h"
+ #include "terminal/input.h"
+ #include "terminal/interrupt.h"
++#include "terminal/notify.h"
+ #include "terminal/theme.h"
+ #include "terminal/ui.h"
+ #include "terminal/vt_resolve.h"
+@@ -1499,6 +1500,11 @@ int agent_run(struct provider **provider_io, const struct hax_opts *options)
+                      state.resume_reason == AGENT_RESUME_MAX_TURNS)
+                 state.compaction_deferred = 1;
+         }
++
++        /* Esc means the user is already present; otherwise notify when the REPL becomes idle,
++         * including errors and max-turn pauses. */
++        if (!user_pressed_escape)
++            notify_attention();
+     }
+ 
+     finalize_tasks(&state);
+diff --git a/src/config.c b/src/config.c
+index 94b3e9a..e8eb2fc 100644
+--- a/src/config.c
++++ b/src/config.c
+@@ -67,6 +67,10 @@ static const struct config_setting REGISTRY[] = {
+                     "terminal always uses full width; a number sets an exact width",
+      .choices = "auto|terminal", .example = "100", .kind = CONFIG_KIND_INT, .min = 20,
+      .editable = 1},
++    {.key = "notify", .env_var = "HAX_NOTIFY", .default_value = "auto",
++     .description = "Desktop-notification style: auto, bel, osc9, off "
++                    "(auto detects from the terminal)",
++     .choices = "auto|bel|osc9|off", .editable = 1},
+     {.key = "theme", .env_var = "HAX_THEME", .default_value = "auto",
+      .description = "Color theme: auto, dark, light, ansi, off (auto detects from the terminal)",
+      .choices = "auto|dark|light|ansi|off", .editable = 1},
+diff --git a/src/terminal/notify.c b/src/terminal/notify.c
+new file mode 100644
+index 0000000..c9e8f86
+--- /dev/null
++++ b/src/terminal/notify.c
+@@ -0,0 +1,86 @@
++/* SPDX-License-Identifier: MIT */
++#include "terminal/notify.h"
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <strings.h>
++#include <unistd.h>
++
++#include "config.h"
++#include "terminal/ansi.h"
++
++enum notify_method {
++    NOTIFY_METHOD_DISABLED,
++    NOTIFY_METHOD_BEL,
++    NOTIFY_METHOD_OSC9,
++};
++
++/* Kitty consumes unsupported OSC 9, including its BEL terminator, so detect support positively. */
++static int terminal_supports_osc9(void)
++{
++    static const char *const TERM_PROGRAMS[] = {"iTerm.app", "ghostty", "WezTerm", "WarpTerminal"};
++    const char *term_program = getenv("TERM_PROGRAM");
++    if (term_program) {
++        for (size_t i = 0; i < sizeof(TERM_PROGRAMS) / sizeof(TERM_PROGRAMS[0]); i++) {
++            if (strcmp(term_program, TERM_PROGRAMS[i]) == 0)
++                return 1;
++        }
++    }
++    if (getenv("GHOSTTY_RESOURCES_DIR") || getenv("GHOSTTY_BIN_DIR"))
++        return 1;
++    if (getenv("WEZTERM_EXECUTABLE") || getenv("WEZTERM_PANE"))
++        return 1;
++    return 0;
++}
++
++static enum notify_method select_notify_method(void)
++{
++    if (!isatty(STDOUT_FILENO))
++        return NOTIFY_METHOD_DISABLED;
++
++    const char *configured_method = config_str("notify");
++    if (configured_method && strcasecmp(configured_method, "off") == 0)
++        return NOTIFY_METHOD_DISABLED;
++    if (configured_method && strcasecmp(configured_method, "bel") == 0)
++        return NOTIFY_METHOD_BEL;
++    if (configured_method && strcasecmp(configured_method, "osc9") == 0)
++        return NOTIFY_METHOD_OSC9;
++
++    const char *terminal_type = getenv("TERM");
++    if (terminal_type && strcmp(terminal_type, "dumb") == 0)
++        return NOTIFY_METHOD_DISABLED;
++
++    /* tmux may drop DCS passthrough and offers no in-band query for allow-passthrough. */
++    if (getenv("TMUX"))
++        return NOTIFY_METHOD_BEL;
++
++    return terminal_supports_osc9() ? NOTIFY_METHOD_OSC9 : NOTIFY_METHOD_BEL;
++}
++
++static void emit_osc9_notification(void)
++{
++    int tmux_wrap = getenv("TMUX") != NULL;
++    if (tmux_wrap)
++        fputs(ANSI_TMUX_PASSTHROUGH_BEGIN, stdout);
++    fputs(ANSI_ESC "]9;hax: ready" ANSI_BEL, stdout);
++    if (tmux_wrap)
++        fputs(ANSI_TMUX_PASSTHROUGH_END, stdout);
++}
++
++void notify_attention(void)
++{
++    enum notify_method method = select_notify_method();
++
++    switch (method) {
++    case NOTIFY_METHOD_DISABLED:
++        return;
++    case NOTIFY_METHOD_BEL:
++        fputs(ANSI_BEL, stdout);
++        break;
++    case NOTIFY_METHOD_OSC9:
++        emit_osc9_notification();
++        break;
++    }
++    fflush(stdout);
++}
+diff --git a/src/terminal/notify.h b/src/terminal/notify.h
+new file mode 100644
+index 0000000..50afa10
+--- /dev/null
++++ b/src/terminal/notify.h
+@@ -0,0 +1,10 @@
++/* SPDX-License-Identifier: MIT */
++#ifndef HAX_TERMINAL_NOTIFY_H
++#define HAX_TERMINAL_NOTIFY_H
++
++/* Emit and flush the configured terminal-attention notification on stdout. Auto mode selects OSC 9
++ * only for known supporting terminals and otherwise uses BEL. No-op when output is not a terminal
++ * or notifications are disabled. */
++void notify_attention(void);
++
++#endif /* HAX_TERMINAL_NOTIFY_H */
+diff --git a/tests/test_config.c b/tests/test_config.c
+index 9c8da98..6f59fd6 100644
+--- a/tests/test_config.c
++++ b/tests/test_config.c
+@@ -937,20 +937,20 @@ static void test_empty_policy(void)
+     clear_env();
+     /* Enums and numerics treat an empty tier as unset, so a stray empty env
+      * can't shadow a configured value or misreport its source. config_str,
+-     * config_source, and the consumers (theme, sort_models, tint) all agree
++     * config_source, and the consumers (theme, sort_models, notify) all agree
+      * through the registry — no per-call-site skip-empty choice. */
+     EXPECT(config_load("{\"theme\": \"light\", \"sort_models\": \"on\","
+-                       " \"tint\": \"rose\"}") == 0);
++                       " \"notify\": \"bel\"}") == 0);
+     setenv("HAX_THEME", "", 1);
+     setenv("HAX_SORT_MODELS", "", 1);
+-    setenv("HAX_TINT", "", 1);
++    setenv("HAX_NOTIFY", "", 1);
+     EXPECT_STR_EQ(config_str("theme"), "light");
+     EXPECT_STR_EQ(config_source("theme"), "config");
+     EXPECT_STR_EQ(config_str("sort_models"), "on");
+     EXPECT_STR_EQ(config_source("sort_models"), "config");
+     EXPECT(config_bool_or("sort_models", 0) == 1);
+-    EXPECT_STR_EQ(config_str("tint"), "rose");
+-    EXPECT_STR_EQ(config_source("tint"), "config");
++    EXPECT_STR_EQ(config_str("notify"), "bel");
++    EXPECT_STR_EQ(config_source("notify"), "config");
+     clear_env();
+ 
+     /* Settings that document a meaning for empty keep it: the empty env wins

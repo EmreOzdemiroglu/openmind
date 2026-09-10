@@ -36,6 +36,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
   truncation now keep their suffix, such as a read's line range, like the full header does.
 ### Added
 
+- Extract desktop notifications into an optional source patch (`notify@1`). The base binary
+  no longer compiles or registers the `notify` setting or platform attention helpers.
 - Automated patch discovery and dual-target verification in CI, testing active catalog patches
   against both their recorded base and candidate source to catch drift.
 - Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
@@ -50,6 +52,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract desktop notifications into an optional source patch (`notify@1`). The base binary
+  no longer compiles or registers the `notify` setting or platform attention helpers.
 - Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
   status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - `hax --json` (implies `-p`) streams new conversation records as JSONL, followed by a `result`
@@ -111,6 +115,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract desktop notifications into an optional source patch (`notify@1`). The base binary
+  no longer compiles or registers the `notify` setting or platform attention helpers.
 - Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
   status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - OpenCode Zen and Go providers (`opencode-zen`, `opencode-go`): set `OPENCODE_API_KEY`, choose a
@@ -175,6 +181,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract desktop notifications into an optional source patch (`notify@1`). The base binary
+  no longer compiles or registers the `notify` setting or platform attention helpers.
 - Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
   status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - Installable via the `oleksandrchekhovskyi/hax` Homebrew tap. Each stable release points the
@@ -215,6 +223,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract desktop notifications into an optional source patch (`notify@1`). The base binary
+  no longer compiles or registers the `notify` setting or platform attention helpers.
 - Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
   status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - Releases now include fully static Linux binaries for x86_64 and aarch64 with a `SHA256SUMS`
