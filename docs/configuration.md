@@ -375,3 +375,13 @@ When model metadata has no output limit, `max_tokens` falls back internally to 3
 | `providers.mock.script` | `HAX_MOCK_SCRIPT` | — | Mock-provider script path. |
 
 Custom provider blocks are documented in [providers.md](./providers.md#custom-providers).
+
+## Personal compiled defaults
+
+When building from source, you can customize default display settings (`markdown`,
+`display_width`, `theme`, and `tint`) at compile time without modifying the source tree:
+
+1. Run `make config` to initialize a personal `config.h` from `config.def.h` if one does not already exist.
+2. Edit `config.h` with your preferred values (schema version macro `HAX_DEFAULTS_SCHEMA 1` is required).
+3. Reconfigure meson with `-Dpersonal_defaults=config.h`.
+4. Run `make check-defaults` or `make` to validate and compile with your defaults.

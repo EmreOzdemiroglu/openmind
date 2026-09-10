@@ -1,0 +1,12 @@
+/* SPDX-License-Identifier: MIT */
+#ifndef HAX_COMPILED_DEFAULTS_H
+#define HAX_COMPILED_DEFAULTS_H
+
+#define HAX_DEFAULTS_SCHEMA 1
+
+#define HAX_DEFAULT_MARKDOWN "1"
+#define HAX_DEFAULT_DISPLAY_WIDTH "auto"
+#define HAX_DEFAULT_THEME "auto"
+#define HAX_DEFAULT_TINT "teal"
+
+#endif /* HAX_COMPILED_DEFAULTS_H */

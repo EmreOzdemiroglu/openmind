@@ -167,3 +167,4 @@ foreach name : e2e_scenarios
 endforeach
 
 test('patches', python, args: [files('test_patches.py')])
+test('defaults', python, args: [files('test_defaults.py')])

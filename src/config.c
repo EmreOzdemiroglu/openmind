@@ -1,6 +1,5 @@
+#include "compiled_defaults.h"
 /* SPDX-License-Identifier: MIT */
-#include "config.h"
-
 #include <ctype.h>
 #include <errno.h>
 #include <jansson.h>
@@ -10,6 +9,7 @@
 #include <string.h>
 #include <strings.h>
 
+#include "config.h"
 #include "diag.h"
 #include "provider.h"
 #include "xalloc.h"
@@ -50,7 +50,7 @@ static const struct config_setting REGISTRY[] = {
                     "task tools are not offered"},
 
     /* display */
-    {.key = "markdown", .env_var = "HAX_MARKDOWN", .default_value = "1",
+    {.key = "markdown", .env_var = "HAX_MARKDOWN", .default_value = HAX_DEFAULT_MARKDOWN,
      .description = "Render Markdown in the terminal (TTY only; piped output is always raw)",
      .choices = CONFIG_CHOICES_BOOL, .editable = 1},
     {.key = "show_reasoning", .env_var = "HAX_SHOW_REASONING",
@@ -62,15 +62,15 @@ static const struct config_setting REGISTRY[] = {
     {.key = "context_limit", .env_var = "HAX_CONTEXT_LIMIT",
      .description = "Manual context-window size for the % display; overrides auto-detect",
      .kind = CONFIG_KIND_TOKENS, .editable = 1},
-    {.key = "display_width", .env_var = "HAX_DISPLAY_WIDTH", .default_value = "auto",
+    {.key = "display_width", .env_var = "HAX_DISPLAY_WIDTH", .default_value = HAX_DEFAULT_DISPLAY_WIDTH,
      .description = "Content width: auto uses full width through 110 columns and 100 beyond that; "
                     "terminal always uses full width; a number sets an exact width",
      .choices = "auto|terminal", .example = "100", .kind = CONFIG_KIND_INT, .min = 20,
      .editable = 1},
-    {.key = "theme", .env_var = "HAX_THEME", .default_value = "auto",
+    {.key = "theme", .env_var = "HAX_THEME", .default_value = HAX_DEFAULT_THEME,
      .description = "Color theme: auto, dark, light, ansi, off (auto detects from the terminal)",
      .choices = "auto|dark|light|ansi|off", .editable = 1},
-    {.key = "tint", .env_var = "HAX_TINT", .default_value = "teal",
+    {.key = "tint", .env_var = "HAX_TINT", .default_value = HAX_DEFAULT_TINT,
      .description = "Identity tint for model output; an active preset's own tint wins until set "
                     "here. Ignored by the ansi and off themes",
      .choices = "teal|violet|rose|sage", .editable = 1},

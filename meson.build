@@ -77,7 +77,23 @@ version_h = vcs_tag(
 # that test binaries (which bring their own `main`) can link the same objects
 # via `hax_lib` without colliding. Keep these lists sorted — additions should
 # slot into the right group alphabetically.
-sources = files(
+
+# Generate compiled display defaults adapter
+personal_defaults_opt = get_option('personal_defaults')
+compiled_defaults_h = custom_target(
+    'compiled_defaults.h',
+    output: 'compiled_defaults.h',
+    command: [
+        find_program('python3'),
+        meson.project_source_root() / 'scripts/generate_defaults.py',
+        meson.project_source_root(),
+        personal_defaults_opt,
+        '@OUTPUT@',
+    ],
+    build_by_default: true,
+)
+
+sources = [compiled_defaults_h] + files(
     'src/agent.c',
     'src/agent_core.c',
     'src/agent_dispatch.c',
