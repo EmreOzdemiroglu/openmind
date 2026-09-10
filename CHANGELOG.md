@@ -27,6 +27,10 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 - The brief history shown on resume now names the task a `task_wait` call waited on, as the
   live header does, instead of a bare `[task_wait]` line. Collapsed tool rows that need
   truncation now keep their suffix, such as a read's line range, like the full header does.
+### Added
+
+- A source patch catalog with check, apply, and reverse commands, CI verification, and an optional
+  compact banner. See [docs/patches.md](docs/patches.md) to customize and rebuild hax.
 
 ## [0.5.0] - 2026-09-04
 

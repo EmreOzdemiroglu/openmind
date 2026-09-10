@@ -67,6 +67,27 @@ jobs:
         if: ${{ matrix.lint }}
         run: make lint
 
+  patches:
+    name: patch / ${{ matrix.patch }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        patch: [compact-banner]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install dependencies
+        run: scripts/install_deps.sh ci lint
+      - name: Test patch workflow
+        run: python3 tests/test_patches.py
+      - name: Apply patch
+        run: scripts/patch.sh apply "${{ matrix.patch }}"
+      - name: Build and test patched source
+        run: make tests
+      - name: Lint patched source
+        run: make lint
+
   # GitHub has no BSD runners, so these boot a QEMU guest on a Linux runner and
   # take longer than the container jobs above. They cannot join that matrix: the
   # whole body has to run inside the VM, which the `cpa.sh` shell arranges.
