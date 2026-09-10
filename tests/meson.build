@@ -166,3 +166,5 @@ foreach name : e2e_scenarios
         timeout: 60,
     )
 endforeach
+
+test('patches', python, args: [files('test_patches.py')])
