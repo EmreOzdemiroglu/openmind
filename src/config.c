@@ -67,10 +67,6 @@ static const struct config_setting REGISTRY[] = {
                     "terminal always uses full width; a number sets an exact width",
      .choices = "auto|terminal", .example = "100", .kind = CONFIG_KIND_INT, .min = 20,
      .editable = 1},
-    {.key = "notify", .env_var = "HAX_NOTIFY", .default_value = "auto",
-     .description = "Desktop-notification style: auto, bel, osc9, off "
-                    "(auto detects from the terminal)",
-     .choices = "auto|bel|osc9|off", .editable = 1},
     {.key = "theme", .env_var = "HAX_THEME", .default_value = "auto",
      .description = "Color theme: auto, dark, light, ansi, off (auto detects from the terminal)",
      .choices = "auto|dark|light|ansi|off", .editable = 1},

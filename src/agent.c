@@ -40,7 +40,6 @@
 #include "terminal/ansi.h"
 #include "terminal/input.h"
 #include "terminal/interrupt.h"
-#include "terminal/notify.h"
 #include "terminal/theme.h"
 #include "terminal/ui.h"
 #include "terminal/vt_resolve.h"
@@ -1500,11 +1499,6 @@ int agent_run(struct provider **provider_io, const struct hax_opts *options)
                      state.resume_reason == AGENT_RESUME_MAX_TURNS)
                 state.compaction_deferred = 1;
         }
-
-        /* Esc means the user is already present; otherwise notify when the REPL becomes idle,
-         * including errors and max-turn pauses. */
-        if (!user_pressed_escape)
-            notify_attention();
     }
 
     finalize_tasks(&state);

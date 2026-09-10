@@ -167,7 +167,6 @@ sources = files(
     'src/terminal/input.c',
     'src/terminal/input_core.c',
     'src/terminal/interrupt.c',
-    'src/terminal/notify.c',
     'src/terminal/picker.c',
     'src/terminal/picker_core.c',
     'src/terminal/theme.c',

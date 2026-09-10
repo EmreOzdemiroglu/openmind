@@ -937,20 +937,20 @@ static void test_empty_policy(void)
     clear_env();
     /* Enums and numerics treat an empty tier as unset, so a stray empty env
      * can't shadow a configured value or misreport its source. config_str,
-     * config_source, and the consumers (theme, sort_models, notify) all agree
+     * config_source, and the consumers (theme, sort_models, tint) all agree
      * through the registry — no per-call-site skip-empty choice. */
     EXPECT(config_load("{\"theme\": \"light\", \"sort_models\": \"on\","
-                       " \"notify\": \"bel\"}") == 0);
+                       " \"tint\": \"rose\"}") == 0);
     setenv("HAX_THEME", "", 1);
     setenv("HAX_SORT_MODELS", "", 1);
-    setenv("HAX_NOTIFY", "", 1);
+    setenv("HAX_TINT", "", 1);
     EXPECT_STR_EQ(config_str("theme"), "light");
     EXPECT_STR_EQ(config_source("theme"), "config");
     EXPECT_STR_EQ(config_str("sort_models"), "on");
     EXPECT_STR_EQ(config_source("sort_models"), "config");
     EXPECT(config_bool_or("sort_models", 0) == 1);
-    EXPECT_STR_EQ(config_str("notify"), "bel");
-    EXPECT_STR_EQ(config_source("notify"), "config");
+    EXPECT_STR_EQ(config_str("tint"), "rose");
+    EXPECT_STR_EQ(config_source("tint"), "config");
     clear_env();
 
     /* Settings that document a meaning for empty keep it: the empty env wins

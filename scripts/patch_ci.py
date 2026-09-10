@@ -41,7 +41,9 @@ def resolve_closure(catalog: dict[str, dict[int, dict]], target: str) -> list[tu
 
     def visit(current: str) -> None:
         if current in visiting:
-            raise RunnerError(f"dependency cycle detected while resolving '{target}' at '{current}'")
+            raise RunnerError(
+                f"dependency cycle detected while resolving '{target}' at '{current}'"
+            )
         if current in visited:
             return
         if current not in entries:
@@ -66,14 +68,18 @@ def resolve_closure(catalog: dict[str, dict[int, dict]], target: str) -> list[tu
 
     features = [entry["feature"] for _, entry in ordered]
     if len(features) != len(set(features)):
-        raise RunnerError(f"patch '{target}' has more than one revision of a feature in its closure")
+        raise RunnerError(
+            f"patch '{target}' has more than one revision of a feature in its closure"
+        )
 
     for current, entry in ordered:
         for other, other_entry in ordered:
             if current == other:
                 continue
             if other_entry["feature"] in entry["conflicts"]:
-                raise RunnerError(f"patch '{current}' conflicts with '{other}' in '{target}' closure")
+                raise RunnerError(
+                    f"patch '{current}' conflicts with '{other}' in '{target}' closure"
+                )
 
     return ordered
 
@@ -90,7 +96,9 @@ def apply_closure(root: Path, worktree: Path, closure: list[tuple[str, dict]]) -
             run(["git", "apply", "--check", str(diff_path)], worktree)
             run(["git", "apply", str(diff_path)], worktree)
         except subprocess.CalledProcessError as error:
-            raise RunnerError(f"applying patch '{current}' failed with exit code {error.returncode}") from error
+            raise RunnerError(
+                f"applying patch '{current}' failed with exit code {error.returncode}"
+            ) from error
 
 
 def verify_worktree(
@@ -126,7 +134,9 @@ def verify_worktree(
                 )
 
 
-def build_plan(root: Path) -> tuple[dict[str, dict[int, dict]], list[tuple[str, list[tuple[str, dict]]]]]:
+def build_plan(
+    root: Path,
+) -> tuple[dict[str, dict[int, dict]], list[tuple[str, list[tuple[str, dict]]]]]:
     catalog = patch_catalog.load_catalog(root, check_commits=True)
     active = [
         selector(feature, revision)

@@ -48,8 +48,8 @@ process, and another config surface.
 
 Event hooks elsewhere serve a handful of needs, each of which hax answers more directly:
 
-- Notifications when the interactive REPL needs attention: built in (`notify`), with planned
-  migration to the source patch catalog (see [docs/core.md](core.md)).
+- Notifications when the interactive REPL needs attention: available as an optional
+  source patch (see [docs/patches.md](patches.md)).
 - Observability and debugging: JSONL sessions record the conversation history — `hax --json`
   streams the same records live for a driving process — `HAX_TRANSCRIPT` shows the model-facing
   context, and `HAX_TRACE` captures redacted HTTP/SSE diagnostics.
