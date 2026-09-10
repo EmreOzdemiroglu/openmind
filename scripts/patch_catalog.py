@@ -159,13 +159,11 @@ def validate_entry(
 
 
 def validate_catalog_consistency(catalog: dict[str, dict[int, dict]]) -> None:
-    # 1. At most one active artifact per feature
     for feature, revisions in catalog.items():
         active_revs = [r for r, d in revisions.items() if d["status"] == "active"]
         if len(active_revs) > 1:
             raise CatalogError(f"feature '{feature}' has multiple active revisions: {active_revs}")
 
-    # 2. Check requirements exist and no graph cycles
     entries_by_sel: dict[str, dict] = {}
     for feature, revisions in catalog.items():
         for rev, d in revisions.items():
@@ -176,8 +174,7 @@ def validate_catalog_consistency(catalog: dict[str, dict[int, dict]]) -> None:
             if req not in entries_by_sel:
                 raise CatalogError(f"patch '{sel}' requires missing patch '{req}'")
 
-    # Cycle check via DFS
-    visited = {}  # 0=unvisited, 1=visiting, 2=visited
+    visited = {}
 
     def dfs(node: str, path: list[str]):
         visited[node] = 1
@@ -193,7 +190,6 @@ def validate_catalog_consistency(catalog: dict[str, dict[int, dict]]) -> None:
         if visited.get(sel, 0) == 0:
             dfs(sel, [sel])
 
-    # 3. Conflicts check (either-side exclusion)
     for sel, d in entries_by_sel.items():
         feat = d["feature"]
         for conf in d["conflicts"]:
@@ -215,40 +211,16 @@ def _diff_path(raw_path: str, prefix: str, path: Path) -> str | None:
 
 
 def _diff_header_paths(line: str, path: Path) -> tuple[str, str]:
-    payload = line[len("diff --git "):]
     try:
-        paths = shlex.split(payload, posix=True)
+        paths = shlex.split(line[len("diff --git "):], posix=True)
     except ValueError as e:
-        paths = []
-        parse_error = e
-    else:
-        parse_error = None
+        raise CatalogError(f"in '{path}': malformed diff header: {e}")
     if len(paths) != 2:
-        separator = payload.find(" b/")
-        if payload.startswith("a/") and separator > 0:
-            paths = [payload[:separator], payload[separator + 1:]]
-    if len(paths) != 2:
-        if parse_error is not None:
-            raise CatalogError(f"in '{path}': malformed diff header: {parse_error}")
         raise CatalogError(f"in '{path}': diff header must name exactly two paths")
     return paths
 
 
-def _file_header_path(text: str, prefix: str, path: Path) -> str | None:
-    if text.startswith('"'):
-        try:
-            paths = shlex.split(text, posix=True)
-        except ValueError as e:
-            raise CatalogError(f"in '{path}': malformed file header: {e}")
-    else:
-        paths = [text]
-    if len(paths) != 1:
-        raise CatalogError(f"in '{path}': file header must name exactly one path")
-    return _diff_path(paths[0], prefix, path)
-
-
 def validate_diff(diff_file: Path, repo_root: Path) -> list[str]:
-    """Validate the restricted Schema 1 diff format before Git can mutate files."""
     try:
         lines = diff_file.read_text(encoding="utf-8").splitlines()
     except UnicodeDecodeError:
@@ -303,16 +275,18 @@ def validate_diff(diff_file: Path, repo_root: Path) -> list[str]:
                     raise CatalogError(f"in '{diff_file}': malformed index metadata for '{name}'")
                 continue
             if line.startswith("--- "):
-                raw_header = line[4:].split("\t", 1)[0]
-                header_name = _file_header_path(raw_header, "a/", diff_file)
-                if header_name is not None and header_name != old_name:
+                raw_hdr = line[4:].split("\t", 1)[0]
+                header_name = None if raw_hdr == "/dev/null" else _diff_path(raw_hdr, "a/", diff_file)
+                expected_old = None if any(l.startswith("new file mode") for l in block) else old_name
+                if header_name != expected_old:
                     raise CatalogError(f"in '{diff_file}': old file header does not match '{name}'")
                 saw_old_header = True
                 continue
             if line.startswith("+++ "):
-                raw_header = line[4:].split("\t", 1)[0]
-                header_name = _file_header_path(raw_header, "b/", diff_file)
-                if header_name is not None and header_name != new_name:
+                raw_hdr = line[4:].split("\t", 1)[0]
+                header_name = None if raw_hdr == "/dev/null" else _diff_path(raw_hdr, "b/", diff_file)
+                expected_new = None if any(l.startswith("deleted file mode") for l in block) else new_name
+                if header_name != expected_new:
                     raise CatalogError(f"in '{diff_file}': new file header does not match '{name}'")
                 saw_new_header = True
                 continue
@@ -368,7 +342,6 @@ def resolve_selector(catalog: dict[str, dict[int, dict]], selector_str: str) -> 
 
 
 def recorded_base(root: Path, selector: str) -> str | None:
-    """Best-effort raw lookup used to preserve the base in validation errors."""
     try:
         feature, revision = parse_selector(selector)
     except CatalogError:
@@ -390,14 +363,14 @@ def recorded_base(root: Path, selector: str) -> str | None:
 
 
 def compare_catalogs(old_cat: dict[str, dict[int, dict]], new_cat: dict[str, dict[int, dict]]) -> None:
-    """Ensure immutability: past revisions cannot change base, diff, digest, requires, conflicts."""
     for feat, revs in old_cat.items():
         if feat not in new_cat:
             raise CatalogError(f"feature '{feat}' was removed from catalog")
         for rev, old_entry in revs.items():
-            if rev not in new_cat[feat]:
+            rev_key = rev if rev in new_cat[feat] else str(rev)
+            if rev_key not in new_cat[feat]:
                 raise CatalogError(f"revision '{feat}@{rev}' was removed from catalog")
-            new_entry = new_cat[feat][rev]
+            new_entry = new_cat[feat][rev_key]
             for immutable_field in ["schema", "feature", "revision", "base_commit", "diff", "sha256", "requires", "conflicts"]:
                 if old_entry[immutable_field] != new_entry[immutable_field]:
                     raise CatalogError(

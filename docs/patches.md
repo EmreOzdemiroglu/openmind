@@ -56,6 +56,26 @@ git apply patches/compact-banner/1/hax-compact-banner-20260905-95e0179.diff
 patch -p1 < patches/compact-banner/1/hax-compact-banner-20260905-95e0179.diff
 ```
 
+## CI verification
+
+The patch CI runner validates every catalog entry, discovers the active revisions, and resolves
+each active artifact's complete `requires` closure in dependency-first order. It applies that
+closure in a temporary worktree at the declared `base_commit`, then builds and tests it. It also
+applies the same closure to a temporary worktree at the candidate `HEAD`, runs the full tests, and
+runs the lint gate. This catches both an invalid recorded patch and drift in the current source.
+
+The base worktree does not need to contain the catalog or runner. The runner reads those files
+from the candidate checkout and passes their diff paths to Git, so a base commit may predate the
+patch system. Archived entries are still checked for schema and digest validity but are not
+tested as standalone CI candidates.
+
+Run the same verification locally after fetching the repository history:
+
+```sh
+python3 scripts/patch_ci.py --discover
+python3 scripts/patch_ci.py
+```
+
 ## Catalog metadata schema (Schema 1)
 
 Each revision directory `patches/<feature>/<revision>/` contains a `patch.json` file.

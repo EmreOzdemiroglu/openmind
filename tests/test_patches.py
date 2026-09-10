@@ -358,39 +358,140 @@ class PatchTests(unittest.TestCase):
         with self.assertRaises(pc.CatalogError):
             pc.load_catalog(self.root, check_commits=False)
 
-
-if __name__ == "__main__":
-    unittest.main()
-
     def test_compare_catalogs_immutability(self):
         import sys
         sys.path.insert(0, str(ROOT))
         import scripts.patch_catalog as pc
 
         old_cat = pc.load_catalog(self.root, check_commits=False)
-        # Deep copy
-        new_cat = json.loads(json.dumps(old_cat))
-
-        # Unchanged passes
+        new_cat = {
+            feature: {revision: dict(entry) for revision, entry in revisions.items()}
+            for feature, revisions in old_cat.items()
+        }
         pc.compare_catalogs(old_cat, new_cat)
 
-        # Status change (active -> archived) is allowed
         new_cat["example"][1]["status"] = "archived"
         pc.compare_catalogs(old_cat, new_cat)
 
-        # In-place base_commit change fails
         new_cat["example"][1]["base_commit"] = "0" * 40
         with self.assertRaises(pc.CatalogError):
             pc.compare_catalogs(old_cat, new_cat)
 
-        # In-place sha256 change fails
         new_cat["example"][1]["base_commit"] = old_cat["example"][1]["base_commit"]
         new_cat["example"][1]["sha256"] = "1" * 64
         with self.assertRaises(pc.CatalogError):
             pc.compare_catalogs(old_cat, new_cat)
 
-        # In-place requires change fails
         new_cat["example"][1]["sha256"] = old_cat["example"][1]["sha256"]
         new_cat["example"][1]["requires"] = ["foo@1"]
         with self.assertRaises(pc.CatalogError):
             pc.compare_catalogs(old_cat, new_cat)
+
+
+class PatchRunnerTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="hax-patch-runner-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / "scripts").mkdir()
+        for name in ("patch_catalog.py", "patch_ci.py"):
+            shutil.copy2(ROOT / "scripts" / name, self.root / "scripts" / name)
+
+        self.git("init", "-q")
+        self.git("config", "user.name", "Test")
+        self.git("config", "user.email", "test@example.com")
+        (self.root / "Makefile").write_text(
+            ".PHONY: tests lint\n"
+            "tests:\n"
+            "\ttest \"$$(cat dependency.txt)\" = base -o \"$$(cat dependency.txt)\" = dependency\n"
+            "\ttest \"$$(cat example.txt)\" = base -o \"$$(cat example.txt)\" = base-drift -o \"$$(cat example.txt)\" = example\n"
+            "\ttest \"$$(cat second.txt)\" = base -o \"$$(cat second.txt)\" = second\n"
+            "lint:\n"
+            "\ttest \"$$(cat dependency.txt)\" = base -o \"$$(cat dependency.txt)\" = dependency\n"
+            "\ttest \"$$(cat example.txt)\" = base -o \"$$(cat example.txt)\" = base-drift -o \"$$(cat example.txt)\" = example\n"
+            "\ttest \"$$(cat second.txt)\" = base -o \"$$(cat second.txt)\" = second\n"
+        )
+        for name in ("dependency.txt", "example.txt", "second.txt"):
+            (self.root / name).write_text("base\n")
+        self.git("add", ".")
+        self.git("commit", "-q", "-m", "base")
+        self.base_commit = self.git("rev-parse", "HEAD").stdout.strip()
+
+        self.add_artifact("dependency", "dependency.txt", "dependency")
+        self.add_artifact("example", "example.txt", "example", requires=["dependency@1"])
+        self.add_artifact("second", "second.txt", "second")
+        self.git("add", ".")
+        self.git("commit", "-q", "-m", "catalog")
+
+    def git(self, *args):
+        return subprocess.run(
+            ["git", *args], cwd=self.root, capture_output=True, text=True, check=True
+        )
+
+    def add_artifact(self, feature, filename, replacement, requires=None, conflicts=None, status="active"):
+        patch_dir = self.root / "patches" / feature / "1"
+        patch_dir.mkdir(parents=True)
+        diff_content = (
+            f"diff --git a/{filename} b/{filename}\n"
+            f"--- a/{filename}\n+++ b/{filename}\n"
+            "@@ -1 +1 @@\n"
+            f"-base\n+{replacement}\n"
+        )
+        diff_file = patch_dir / f"{feature}.diff"
+        diff_file.write_text(diff_content)
+        metadata = {
+            "schema": 1,
+            "feature": feature,
+            "revision": 1,
+            "base_commit": self.base_commit,
+            "diff": diff_file.name,
+            "sha256": hashlib.sha256(diff_content.encode("utf-8")).hexdigest(),
+            "requires": requires or [],
+            "conflicts": conflicts or [],
+            "status": status,
+        }
+        (patch_dir / "patch.json").write_text(json.dumps(metadata, indent=2))
+
+    def run_runner(self, *args):
+        return subprocess.run(
+            ["python3", "scripts/patch_ci.py", *args],
+            cwd=self.root, capture_output=True, text=True,
+        )
+
+    def test_discovers_second_artifact_and_verifies_both_sources(self):
+        discovered = self.run_runner("--discover")
+        self.assertEqual(discovered.returncode, 0, discovered.stderr)
+        self.assertEqual(discovered.stdout.splitlines(), ["dependency@1", "example@1", "second@1"])
+
+        result = self.run_runner()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Verifying example@1 closure: dependency@1, example@1", result.stdout)
+        self.assertGreaterEqual(result.stdout.count("make tests"), 3)
+        self.assertGreaterEqual(result.stdout.count("make lint"), 3)
+
+    def test_candidate_drift_fails_after_base_verification(self):
+        (self.root / "example.txt").write_text("base-drift\n")
+        self.git("add", "example.txt")
+        self.git("commit", "-q", "-m", "candidate drift")
+
+        result = self.run_runner()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("applying patch 'example@1' failed", result.stderr)
+
+    def test_conflict_and_requires_are_checked_before_builds(self):
+        metadata_path = self.root / "patches/second/1/patch.json"
+        metadata = json.loads(metadata_path.read_text())
+        metadata["requires"] = ["example@1"]
+        metadata["conflicts"] = ["example"]
+        metadata_path.write_text(json.dumps(metadata, indent=2))
+        self.git("add", str(metadata_path.relative_to(self.root)))
+        self.git("commit", "-q", "-m", "conflicting catalog")
+
+        result = self.run_runner()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("conflicts with 'example@1'", result.stderr)
+        self.assertNotIn("git worktree add", result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()

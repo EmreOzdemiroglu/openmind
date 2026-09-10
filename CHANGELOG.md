@@ -22,6 +22,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Fixed
 
+- CI now discovers active catalog patches, validates their dependency closures, and verifies them
+  against both their recorded base commits and the current candidate source.
 - Manual catalog patch operations now validate the selected artifact and restricted text diff
   format before using Git's working-tree-only apply semantics, preserving staged and unrelated
   changes while reporting recorded-base compatibility.
@@ -34,6 +36,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
   truncation now keep their suffix, such as a read's line range, like the full header does.
 ### Added
 
+- Automated patch discovery and dual-target verification in CI, testing active catalog patches
+  against both their recorded base and candidate source to catch drift.
 - Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
   status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - Policy and architecture documentation defining the hax core and optional-feature migration
