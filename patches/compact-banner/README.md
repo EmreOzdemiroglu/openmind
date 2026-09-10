@@ -10,6 +10,7 @@ and the keyboard shortcuts still work.
 - Verification: `scripts/check.sh test banner agent` after applying the patch.
 
 ```sh
+scripts/patch.sh inspect compact-banner
 scripts/patch.sh check compact-banner
 scripts/patch.sh apply compact-banner
 make

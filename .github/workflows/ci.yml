@@ -85,6 +85,8 @@ jobs:
         run: |
           command -v git >/dev/null 2>&1
           git --version
+      - name: Validate patch catalog
+        run: scripts/patch.sh catalog-check
       - name: Test patch workflow
         run: python3 tests/test_patches.py
       - name: Apply patch

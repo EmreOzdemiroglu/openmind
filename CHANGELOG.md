@@ -31,6 +31,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
   truncation now keep their suffix, such as a read's line range, like the full header does.
 ### Added
 
+- Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
+  status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - Policy and architecture documentation defining the hax core and optional-feature migration
   contract, including inclusion rules, extraction checklist, and glossary. See
   [docs/core.md](docs/core.md).
@@ -41,6 +43,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
+  status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - `hax --json` (implies `-p`) streams new conversation records as JSONL, followed by a `result`
   record with the outcome, final text, cost, and session id. Plain `-p` output is unchanged, and
   the session-file schema is now a supported read surface. See [docs/sessions.md](docs/sessions.md).
@@ -100,6 +104,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
+  status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - OpenCode Zen and Go providers (`opencode-zen`, `opencode-go`): set `OPENCODE_API_KEY`, choose a
   model, and hax selects the API it needs. `/usage` shows OpenCode Go's subscription limits. See
   [docs/providers.md](docs/providers.md#opencode-zen-and-go).
@@ -162,6 +168,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
+  status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - Installable via the `oleksandrchekhovskyi/hax` Homebrew tap. Each stable release points the
   formula at the published source tarball automatically.
 - `make install` and `make symlink` complete the from-source flow. `scripts/install_deps.sh`
@@ -200,6 +208,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
+  status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - Releases now include fully static Linux binaries for x86_64 and aarch64 with a `SHA256SUMS`
   file. Each tarball contains the binary as `hax`, ready to extract into `PATH`; it runs on any
   distribution with no dependencies.

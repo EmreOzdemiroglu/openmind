@@ -5,21 +5,32 @@ set -eu
 cd "$(dirname "$0")/.."
 
 usage() {
-    echo 'usage: scripts/patch.sh list | check|apply|reverse <name>' >&2
+    echo 'usage: scripts/patch.sh list | catalog-check | inspect <selector> | check|apply|reverse <selector>' >&2
     exit 2
 }
 
 [ "$#" -ge 1 ] || usage
 action=$1
 shift
+
 case $action in
 list)
     [ "$#" -eq 0 ] || usage
-    for file in patches/*/*.diff; do
-        [ -f "$file" ] || continue
-        name=${file#patches/}
-        printf '%s\n' "${name%%/*}"
-    done
+    python3 scripts/patch_catalog.py list
+    exit 0
+    ;;
+catalog-check)
+    [ "$#" -eq 0 ] || usage
+    if ! command -v git >/dev/null 2>&1; then
+        printf '%s\n' 'error: git required; install git to check catalog commits' >&2
+        exit 1
+    fi
+    python3 scripts/patch_catalog.py check
+    exit 0
+    ;;
+inspect)
+    [ "$#" -eq 1 ] || usage
+    python3 scripts/patch_catalog.py inspect "$1"
     exit 0
     ;;
 check|apply|reverse) ;;
@@ -32,21 +43,15 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 
 [ "$#" -eq 1 ] || usage
-name=$1
-case $name in
-''|*[!a-z0-9-]*) usage ;;
-esac
-set -- patches/"$name"/*.diff
-if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
-    printf 'error: expected one diff for patch %s; see scripts/patch.sh list\n' "$name" >&2
-    exit 1
-fi
-patch=$1
+selector=$1
+
+# Resolve selector to diff path via patch_catalog.py
+patch_diff=$(python3 scripts/patch_catalog.py resolve "$selector")
 
 # git apply checks every hunk before writing; never use --reject here.
 case $action in
-check) git apply --check "$patch" ;;
-apply) git apply "$patch" ;;
-reverse) git apply --reverse "$patch" ;;
+check) git apply --check "$patch_diff" ;;
+apply) git apply "$patch_diff" ;;
+reverse) git apply --reverse "$patch_diff" ;;
 esac
-printf '%s %s OK\n' "$action" "$name"
+printf '%s %s OK\n' "$action" "$selector"
