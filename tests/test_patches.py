@@ -597,3 +597,60 @@ class RecipeTests(unittest.TestCase):
         rpath.write_text(json.dumps(recipe))
         res = self.run_recipe_check(rpath, success=False)
         self.assertIn("defaults digest mismatch", res.stderr)
+
+
+class PrepareTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="hax-prepare-test-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / "scripts").mkdir()
+        shutil.copy2(ROOT / "scripts/patch.sh", self.root / "scripts/patch.sh")
+        shutil.copy2(ROOT / "scripts/patch_catalog.py", self.root / "scripts/patch_catalog.py")
+
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=self.root, check=True)
+        (self.root / "first").write_text("base\n")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=self.root, check=True)
+        self.base_commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+        p1_dir = self.root / "patches/p1/1"
+        p1_dir.mkdir(parents=True)
+        p1_diff = p1_dir / "p1.diff"
+        p1_diff.write_text("diff --git a/first b/first\n--- a/first\n+++ b/first\n@@ -1 +1 @@\n-base\n+p1\n")
+        p1_sha = hashlib.sha256(p1_diff.read_bytes()).hexdigest()
+        (p1_dir / "patch.json").write_text(json.dumps({
+            "schema": 1, "feature": "p1", "revision": 1, "base_commit": self.base_commit,
+            "diff": "p1.diff", "sha256": p1_sha, "requires": [], "conflicts": [], "status": "active"
+        }))
+        self.p1_sha = p1_sha
+
+    def run_prepare(self, recipe_path, dest_dir, success=True):
+        res = subprocess.run(
+            [SHELL, str(self.root / "scripts/patch.sh"), "prepare", str(recipe_path), "--output", str(dest_dir)],
+            cwd=self.root, capture_output=True, text=True,
+        )
+        self.assertEqual(res.returncode == 0, success, res.stdout + res.stderr)
+        return res
+
+    def test_prepare_success(self):
+        recipe = {
+            "schema": 1,
+            "base_commit": self.base_commit,
+            "patches": [{"id": "p1@1", "sha256": self.p1_sha}],
+        }
+        rpath = self.root / "recipe.json"
+        rpath.write_text(json.dumps(recipe))
+        dest = self.root / "prepared_dest"
+        res = self.run_prepare(rpath, dest)
+        self.assertIn("prepare OK", res.stdout)
+        self.assertTrue((dest / "receipt.json").is_file())
+        self.assertTrue((dest / "source/first").is_file())
+        self.assertEqual((dest / "source/first").read_text(), "p1\n")
+
+        # Destination already exists on second run
+        self.run_prepare(rpath, dest, success=False)

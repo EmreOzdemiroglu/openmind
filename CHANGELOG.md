@@ -38,6 +38,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
   truncation now keep their suffix, such as a read's line range, like the full header does.
 ### Added
 
+- Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
+  producing an isolated source tree and verifiable `receipt.json` files inventory.
 - Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
   an immutable base commit, exact ordered patch sequence, and optional personal defaults.
 - Support personal compiled display defaults via `config.def.h` template and optional
@@ -63,6 +65,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
+  producing an isolated source tree and verifiable `receipt.json` files inventory.
 - Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
   an immutable base commit, exact ordered patch sequence, and optional personal defaults.
 - Support personal compiled display defaults via `config.def.h` template and optional
@@ -137,6 +141,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
+  producing an isolated source tree and verifiable `receipt.json` files inventory.
 - Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
   an immutable base commit, exact ordered patch sequence, and optional personal defaults.
 - Support personal compiled display defaults via `config.def.h` template and optional
@@ -214,6 +220,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
+  producing an isolated source tree and verifiable `receipt.json` files inventory.
 - Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
   an immutable base commit, exact ordered patch sequence, and optional personal defaults.
 - Support personal compiled display defaults via `config.def.h` template and optional
@@ -267,6 +275,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
+  producing an isolated source tree and verifiable `receipt.json` files inventory.
 - Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
   an immutable base commit, exact ordered patch sequence, and optional personal defaults.
 - Support personal compiled display defaults via `config.def.h` template and optional

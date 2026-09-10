@@ -3,6 +3,9 @@
 """Validation and query operations for the versioned patch catalog."""
 
 from __future__ import annotations
+import os
+import shutil
+import tempfile
 
 import argparse
 import hashlib
@@ -494,6 +497,122 @@ def validate_recipe(recipe_path: Path, repo_root: Path) -> dict:
     return data
 
 
+def generate_inventory(source_dir: Path) -> list[dict]:
+    inventory = []
+    for item in sorted(source_dir.rglob("*")):
+        rel = item.relative_to(source_dir).as_posix()
+        if item.is_symlink():
+            inventory.append({
+                "path": rel,
+                "kind": "symlink",
+                "mode": oct(item.lstat().st_mode)[-4:],
+                "target": os.readlink(item),
+            })
+        elif item.is_file():
+            content = item.read_bytes()
+            inventory.append({
+                "path": rel,
+                "kind": "file",
+                "mode": oct(item.stat().st_mode)[-4:],
+                "sha256": hashlib.sha256(content).hexdigest(),
+            })
+    return inventory
+
+
+def prepare_recipe(recipe_path: Path, dest_dir: Path, repo_root: Path) -> Path:
+    # Destination must be absent
+    if dest_dir.exists():
+        raise CatalogError(f"destination '{dest_dir}' already exists")
+
+    # Validate recipe first
+    recipe = validate_recipe(recipe_path, repo_root)
+
+    # Staging dir in parent or tmp
+    parent = dest_dir.resolve().parent
+    parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix="hax-prepare-stage-", dir=parent))
+
+    try:
+        source_dir = staging / "source"
+        source_dir.mkdir()
+
+        # Export tracked base via git archive
+        base_commit = recipe["base_commit"]
+        proc = subprocess.run(
+            ["git", "archive", base_commit],
+            cwd=repo_root, capture_output=True, check=True
+        )
+        tar_proc = subprocess.run(
+            ["tar", "-x", "-C", str(source_dir)],
+            input=proc.stdout, capture_output=True, check=True
+        )
+
+        # Check for reserved build dir collision in base
+        if (source_dir / "build").exists():
+            raise CatalogError(f"tracked base commit '{base_commit}' contains reserved 'build' directory")
+
+        catalog = load_catalog(repo_root, check_commits=False)
+
+        # Apply patches sequentially in order
+        for p_item in recipe["patches"]:
+            p_id = p_item["id"]
+            _, diff_path = resolve_selector(catalog, p_id)
+            abs_diff = (repo_root / diff_path).resolve()
+            # Validate diff against staging source_dir
+            validate_diff(abs_diff, source_dir)
+
+            res = subprocess.run(
+                ["git", "apply", "--check", str(abs_diff)],
+                cwd=source_dir, capture_output=True, text=True
+            )
+            if res.returncode != 0:
+                raise CatalogError(f"failed to check patch '{p_id}': {res.stderr.strip()}")
+
+            res = subprocess.run(
+                ["git", "apply", str(abs_diff)],
+                cwd=source_dir, capture_output=True, text=True
+            )
+            if res.returncode != 0:
+                raise CatalogError(f"failed to apply patch '{p_id}': {res.stderr.strip()}")
+
+        defaults_record = None
+        if "defaults" in recipe:
+            d_info = recipe["defaults"]
+            recipe_dir = recipe_path.parent
+            d_src = (recipe_dir / d_info["path"]).resolve()
+            d_dst = source_dir / "config.h"
+            shutil.copy2(d_src, d_dst)
+            defaults_record = {
+                "path": "config.h",
+                "sha256": d_info["sha256"]
+            }
+
+        inventory = generate_inventory(source_dir)
+
+        receipt = {
+            "schema": 1,
+            "base_commit": base_commit,
+            "patches": recipe["patches"],
+            "defaults": defaults_record,
+            "files": inventory,
+        }
+        (staging / "receipt.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
+
+        # Atomic rename to dest_dir
+        try:
+            staging.rename(dest_dir)
+        except OSError as e:
+            raise CatalogError(f"failed to move prepared directory to '{dest_dir}': {e}")
+
+        return dest_dir
+
+    except Exception:
+        # Cleanup staging on failure
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(description="Patch catalog manager")
     sub = parser.add_subparsers(dest="subcommand", required=True)
@@ -502,6 +621,9 @@ def main():
     sub.add_parser("check")
     rc = sub.add_parser("recipe-check")
     rc.add_argument("recipe", help="path to recipe JSON file")
+    prep = sub.add_parser("prepare")
+    prep.add_argument("recipe", help="path to recipe JSON file")
+    prep.add_argument("--output", required=True, help="destination directory")
     insp = sub.add_parser("inspect")
     insp.add_argument("selector", help="feature or feature@revision")
     res = sub.add_parser("resolve")
@@ -528,6 +650,9 @@ def main():
         elif args.subcommand == "recipe-check":
             recipe_data = validate_recipe(Path(args.recipe), root)
             print(f"recipe OK: base {recipe_data["base_commit"]}, {len(recipe_data["patches"])} patches")
+        elif args.subcommand == "prepare":
+            dest = prepare_recipe(Path(args.recipe), Path(args.output), root)
+            print(f"prepare OK: {dest}")
         elif args.subcommand == "inspect":
             entry, diff_path = resolve_selector(catalog, args.selector)
             print(f"Feature:     {entry['feature']}")

@@ -172,3 +172,15 @@ Validate a recipe offline without modifying source or Git state:
 ```sh
 scripts/patch.sh recipe-check path/to/recipe.json
 ```
+
+## Preparing locked patched source
+
+Turn a validated recipe into a standalone source tree with `scripts/patch.sh prepare`:
+
+```sh
+scripts/patch.sh prepare path/to/recipe.json --output /path/to/destination
+```
+
+This exports the pinned base commit from Git, applies patches sequentially into an isolated
+staging directory, writes a `receipt.json` files inventory, and moves the final result to the
+destination directory without modifying the caller's working tree or index.
