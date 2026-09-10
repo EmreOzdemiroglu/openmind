@@ -31,6 +31,9 @@ notes (see [docs/releasing.md](docs/releasing.md)).
   truncation now keep their suffix, such as a read's line range, like the full header does.
 ### Added
 
+- Policy and architecture documentation defining the hax core and optional-feature migration
+  contract, including inclusion rules, extraction checklist, and glossary. See
+  [docs/core.md](docs/core.md).
 - A source patch catalog with check, apply, and reverse commands, CI verification, and an optional
   compact banner. See [docs/patches.md](docs/patches.md) to customize and rebuild hax.
 

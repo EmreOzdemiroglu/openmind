@@ -4,6 +4,8 @@ The [catalog](../patches/README.md) contains optional features as ordinary unifi
 This follows the [suckless patch workflow](https://suckless.org/hacking/): select a feature,
 review its source changes, apply it, and rebuild your binary. Existing hax features remain in
 the base for this first version. Future optional features can live entirely in the catalog.
+See [docs/core.md](core.md) for the core architecture boundary, inclusion rules, and the
+optional-feature migration contract.
 
 ## Apply a patch
 
@@ -40,6 +42,9 @@ conflict check comes from `git apply`.
 
 ## Maintain a custom build
 
+Stock release binaries represent the pure base code without patches. When distributing or
+reporting issues on custom builds, state which catalog patches or local edits are applied.
+
 Keep your customization commits on a personal branch. Apply dependencies first, then dependent
 patches, one command at a time. Record that order in your branch's documentation. A sequence of
 commands is not a transaction: earlier successful patches remain if a later patch fails.
@@ -59,6 +64,8 @@ branch. A patch that applies cleanly can still conflict semantically with anothe
 CI tests each catalog patch individually; it does not promise compatibility between all pairs.
 
 ## Publish a patch
+
+Features must follow the inclusion rules and the extraction checklist in [docs/core.md](core.md).
 
 Create a feature branch from a known base revision. Change the source and its tests, then run
 `clang-format -i` on changed C files, `make tests`, and `make lint`. Commit the feature with a
