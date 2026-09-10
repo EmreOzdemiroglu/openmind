@@ -101,7 +101,6 @@ sources = files(
     'src/model_meta.c',
     'src/model_sort.c',
     'src/oneshot.c',
-    'src/paste_image.c',
     'src/provider.c',
     'src/select.c',
     'src/session.c',
@@ -163,7 +162,6 @@ sources = files(
     'src/system/tempfiles.c',
 
     'src/terminal/clipboard.c',
-    'src/terminal/clipboard_capture.c',
     'src/terminal/paste_uri.c',
     'src/terminal/input.c',
     'src/terminal/input_core.c',

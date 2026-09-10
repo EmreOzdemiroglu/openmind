@@ -20,7 +20,6 @@
 #include "file_mention.h"
 #include "history.h"
 #include "model_meta.h"
-#include "paste_image.h"
 #include "provider.h"
 #include "select.h"
 #include "session.h"
@@ -396,12 +395,6 @@ static int view_pager_open(struct spawn_pipe *pipe)
     int rc = spawn_pipe_open_write(pipe, pager);
     free(pager);
     return rc;
-}
-
-static char *capture_paste(void *user)
-{
-    (void)user;
-    return paste_image_capture();
 }
 
 /* Bracketed paste bypasses the Ctrl-V hook, so convert file URIs in the body filter too. */
@@ -1254,7 +1247,6 @@ int agent_run(struct provider **provider_io, const struct hax_opts *options)
     /* Prompt recall remains readable when recording is disabled. */
     input_history_open_default(input, recording_enabled);
     input_set_modal_completer(input, &file_mention_completer);
-    input_set_paste_hook(input, capture_paste, NULL);
     input_set_paste_filter(input, filter_paste, NULL);
     /* Transcript logging is optional; its API is NULL-safe. */
     struct transcript_log *transcript =

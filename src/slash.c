@@ -218,7 +218,6 @@ static const struct shortcut SHORTCUTS[] = {
     {.key = "ctrl-g", .description = "edit prompt in $EDITOR"},
     {.key = "ctrl-o", .description = "view conversation history in $PAGER"},
     {.key = "ctrl-t", .description = "view model-facing transcript in $PAGER"},
-    {.key = "ctrl-v", .description = "paste image (or text) from clipboard"},
     {.key = "@ + tab",
      .description = "pick a project file to mention",
      .available = file_mention_available,

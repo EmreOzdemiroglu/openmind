@@ -197,17 +197,6 @@ static void append_paste_body(void *user, const char *bytes, size_t n)
     buf_append((struct buf *)user, bytes, n);
 }
 
-static void invoke_paste_hook(struct input *in)
-{
-    if (!in->paste_hook)
-        return;
-    char *ins = in->paste_hook(in->paste_hook_user);
-    if (!ins)
-        return;
-    input_core_insert(in, ins, strlen(ins));
-    free(ins);
-}
-
 /* Buffer the complete body for filtering. macOS uses an empty body when the clipboard
  * contains an image, so defer that case to the paste hook. */
 static void handle_bracketed_paste(struct input *in)
@@ -217,7 +206,6 @@ static void handle_bracketed_paste(struct input *in)
     read_bracketed_paste(append_paste_body, &body);
     if (body.len == 0) {
         buf_free(&body);
-        invoke_paste_hook(in);
         return;
     }
     input_core_commit_paste(in, body.data, body.len);
@@ -1267,12 +1255,6 @@ void input_set_modal_completer(struct input *in, const struct input_modal_comple
     in->completer = completer;
 }
 
-void input_set_paste_hook(struct input *in, char *(*fn)(void *user), void *user)
-{
-    in->paste_hook = fn;
-    in->paste_hook_user = user;
-}
-
 void input_set_paste_filter(struct input *in, char *(*fn)(const char *text, void *user), void *user)
 {
     in->paste_filter = fn;
@@ -1442,9 +1424,6 @@ char *input_readline(struct input *in, const char *prompt)
             break;
         case 0x15: /* Ctrl-U */
             input_core_kill_to_bol(in);
-            break;
-        case 0x16: /* Ctrl-V */
-            invoke_paste_hook(in);
             break;
         case 0x17: /* Ctrl-W */
             input_core_kill_word_back(in);

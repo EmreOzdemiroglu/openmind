@@ -53,7 +53,6 @@ void input_set_modal_completer(struct input *in, const struct input_modal_comple
  * NULL return inserts nothing; NULL `fn` disables the binding. The hook
  * must not touch the tty — the editor stays in raw mode around the
  * call. */
-void input_set_paste_hook(struct input *in, char *(*fn)(void *user), void *user);
 
 /* Register the bracketed-paste body filter. `fn` receives each non-empty,
  * NUL-terminated body after CR/CRLF normalization and NUL-byte replacement. It returns a
