@@ -163,6 +163,8 @@ sources = files(
     'src/system/tempfiles.c',
 
     'src/terminal/clipboard.c',
+    'src/terminal/clipboard_capture.c',
+    'src/terminal/paste_uri.c',
     'src/terminal/input.c',
     'src/terminal/input_core.c',
     'src/terminal/interrupt.c',

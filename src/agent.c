@@ -40,6 +40,7 @@
 #include "terminal/ansi.h"
 #include "terminal/input.h"
 #include "terminal/interrupt.h"
+#include "terminal/paste_uri.h"
 #include "terminal/theme.h"
 #include "terminal/ui.h"
 #include "terminal/vt_resolve.h"
@@ -407,7 +408,7 @@ static char *capture_paste(void *user)
 static char *filter_paste(const char *text, void *user)
 {
     (void)user;
-    return paste_image_uris_to_paths(text);
+    return paste_uri_list_to_paths(text);
 }
 
 /* View callbacks borrow agent_run's live state so vector growth and provider replacement cannot

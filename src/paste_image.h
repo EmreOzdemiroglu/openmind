@@ -12,9 +12,4 @@ char *paste_image_capture(void);
 /* Normalize CRLF and lone CR to LF and remove NUL bytes in place. Return the new length. */
 size_t paste_image_normalize_text(char *text, size_t text_len);
 
-/* Convert a newline-separated list of local file:// URIs to paths. Paths with recognized image
- * extensions become pasted-image markers without accessing the filesystem. Return an allocated
- * replacement, or NULL when `text` is not a non-empty URI list. */
-char *paste_image_uris_to_paths(const char *text);
-
 #endif /* HAX_PASTE_IMAGE_H */

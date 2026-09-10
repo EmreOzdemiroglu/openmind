@@ -9,6 +9,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Changed
 
+- Separate clipboard capture from copy/OSC 52 and isolate local file URI conversion into
+  its own module (`terminal/paste_uri.{c,h}`).
 - Custom providers no longer take their models.dev catalog identity from their own name; set
   `catalog_id` explicitly (for example `"catalog_id": "groq"`) to keep pricing and context
   metadata. Local servers and proxies without one never contact models.dev. See
@@ -76,6 +78,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Changed
 
+- Separate clipboard capture from copy/OSC 52 and isolate local file URI conversion into
+  its own module (`terminal/paste_uri.{c,h}`).
 - Anthropic-protocol models on OpenCode Zen/Go and `anthropic-compatible` endpoints now use prompt
   caching and choose adaptive or budget thinking from model metadata, as first-party Anthropic now
   does. `thinking_mode` adds `auto` (the default) and `prefer-adaptive`.
@@ -144,6 +148,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Changed
 
+- Separate clipboard capture from copy/OSC 52 and isolate local file URI conversion into
+  its own module (`terminal/paste_uri.{c,h}`).
 - **Breaking:** provider settings now belong to `providers.<id>` blocks and no longer leak between
   endpoints. Several keys and environment variables changed scope; users with advanced provider
   configuration should revisit [docs/providers.md](docs/providers.md) and
@@ -203,6 +209,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Changed
 
+- Separate clipboard capture from copy/OSC 52 and isolate local file URI conversion into
+  its own module (`terminal/paste_uri.{c,h}`).
 - The `task_kill` tool is merged into `task_wait`: a `kill` argument stops the background task
   and returns its final output in the same call — immediately, or after `timeout_seconds` to
   give the task a last window to finish on its own. Stopping a task and collecting its output
@@ -247,6 +255,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Changed
 
+- Separate clipboard capture from copy/OSC 52 and isolate local file URI conversion into
+  its own module (`terminal/paste_uri.{c,h}`).
 - Unified diffs for write/edit results are computed by an in-tree diff implementation instead
   of shelling out to `diff`, so `diffutils` is no longer a runtime dependency and the write and
   edit tools work on minimal systems where `diff` is absent.

@@ -34,6 +34,7 @@ test_sources = [
     'test_harness.c',
     'test_oneshot.c',
     'test_paste_image.c',
+    'test_paste_uri.c',
     'test_provider.c',
     'test_select_config.c',
     'test_select_model.c',
