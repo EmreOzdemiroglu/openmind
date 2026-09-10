@@ -238,7 +238,6 @@ provider-dependent.
 | `display_width` | `HAX_DISPLAY_WIDTH` | `auto` | `auto`, `terminal`, or an exact width of at least 20 columns. |
 | `theme` | `HAX_THEME` | `auto` | `auto`, `dark`, `light`, `ansi`, or `off`. |
 | `tint` | `HAX_TINT` | `teal` | Model-output tint: `teal`, `violet`, `rose`, or `sage`. |
-| `keep_awake` | `HAX_KEEP_AWAKE` | on | Best-effort idle-sleep inhibition while a turn runs. |
 | `compact.auto` | `HAX_COMPACT_AUTO` | on | Automatically summarize history near the context limit. |
 | `compact.threshold` | `HAX_COMPACT_THRESHOLD` | `85` | Context percentage that triggers automatic compaction. |
 | `max_turns` | `HAX_MAX_TURNS` | `auto` | Model round-trips per user turn: interactive pauses, one-shot aborts. `auto`: unlimited interactively, 100 in one-shot. |

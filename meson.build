@@ -155,7 +155,6 @@ sources = files(
     'src/system/fd.c',
     'src/system/fs.c',
     'src/system/git.c',
-    'src/system/keepawake.c',
     'src/system/locale.c',
     'src/system/os.c',
     'src/system/path.c',

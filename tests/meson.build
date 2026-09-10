@@ -85,7 +85,6 @@ test_sources = [
     'system/test_fd.c',
     'system/test_fs.c',
     'system/test_git.c',
-    'system/test_keepawake.c',
     'system/test_locale.c',
     'system/test_os.c',
     'system/test_path.c',

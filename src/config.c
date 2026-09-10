@@ -76,9 +76,6 @@ static const struct config_setting REGISTRY[] = {
      .choices = "teal|violet|rose|sage", .editable = 1},
 
     /* behavior */
-    {.key = "keep_awake", .env_var = "HAX_KEEP_AWAKE", .default_value = "1",
-     .description = "Inhibit idle system sleep while a turn is running (display may still blank)",
-     .choices = CONFIG_CHOICES_BOOL, .editable = 1},
     {.key = "compact.auto", .env_var = "HAX_COMPACT_AUTO", .default_value = "1",
      .description = "Auto-summarize history when it nears the context window "
                     "(manual /compact still works)",

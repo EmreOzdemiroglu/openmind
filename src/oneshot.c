@@ -580,7 +580,7 @@ static int finish_run(struct oneshot_state *state, const struct agent_loop_resul
     if (state->json)
         emit_json_items(state);
     int result = handle_loop_result(state, loop_result, max_turns);
-    /* The loop tears down (keepawake) after its last cancellation check, so a stop can land
+    /* The loop tears down  after its last cancellation check, so a stop can land
      * with the outcome already decided. The recorded outcome stands — the work finished — but
      * the exit status must not report success the user cancelled. */
     if (result == 0 && interrupt_abort_requested())
