@@ -22,6 +22,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Fixed
 
+- Patch workflow tests now require Git in CI, while `scripts/patch.sh list` remains usable in
+  Git-less source snapshots and other patch actions report a clear prerequisite error.
 - `config.json` and `state.json` are now written with a trailing newline, matching `auth.json`
   and session files.
 - The brief history shown on resume now names the task a `task_wait` call waited on, as the

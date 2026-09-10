@@ -3,15 +3,26 @@
 """Exercise the patch helper in disposable source trees."""
 
 from pathlib import Path
+import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+SHELL = shutil.which("sh") or "/bin/sh"
+MISSING_GIT_ERROR = "error: git required; install git to check, apply, or reverse patches"
 
 
 class PatchTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        if shutil.which("git") is None:
+            if os.environ.get("HAX_CI_REQUIRE_GIT"):
+                raise AssertionError("git is required for the CI patch workflow")
+            raise unittest.SkipTest("git not installed; skipping patch workflow tests")
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="hax-patches-")
         self.addCleanup(self.temp.cleanup)
@@ -30,16 +41,31 @@ class PatchTests(unittest.TestCase):
         (self.root / "first").write_text("old\n")
         (self.root / "second").write_text("before\n")
 
-    def run_patch(self, *args, success=True):
+    def run_patch(self, *args, success=True, env=None):
         result = subprocess.run(
-            ["sh", str(self.root / "scripts/patch.sh"), *args],
+            [SHELL, str(self.root / "scripts/patch.sh"), *args],
             cwd=self.root / "scripts", capture_output=True, text=True,
+            env=env,
         )
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
-        return result.stdout
+        return result
+
+    def gitless_env(self):
+        bin_dir = self.root / "no-git-bin"
+        bin_dir.mkdir()
+        dirname = shutil.which("dirname")
+        self.assertIsNotNone(dirname)
+        (bin_dir / "dirname").symlink_to(dirname)
+        env = os.environ.copy()
+        env["PATH"] = str(bin_dir)
+        return env
 
     def test_list(self):
-        self.assertEqual(self.run_patch("list"), "example\n")
+        self.assertEqual(self.run_patch("list").stdout, "example\n")
+        env = self.gitless_env()
+        self.assertEqual(self.run_patch("list", env=env).stdout, "example\n")
+        result = self.run_patch("apply", "example", success=False, env=env)
+        self.assertEqual(result.stderr, MISSING_GIT_ERROR + "\n")
 
     def test_round_trip_preserves_unrelated_edits(self):
         (self.root / "notes").write_text("local work\n")

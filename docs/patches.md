@@ -23,9 +23,10 @@ staging files or creating commits. If a hunk conflicts, Git rejects the patch wi
 its other hunks. The helper does not use fuzzy conflict resolution or leave `.rej` files.
 Unrelated local edits are preserved. Inspect `git diff` before committing your custom build.
 
-The helper requires Git and a POSIX shell. Python is used by the development tests, as it is
-elsewhere in this repository. There is one active diff per catalog directory. To use a diff
-without the helper, including from an extracted source release:
+The `check`, `apply`, and `reverse` actions require Git and a POSIX shell; `list` only
+requires the shell. Python is used by the development tests, as it is elsewhere in this
+repository. There is one active diff per catalog directory. To use a diff without the helper,
+including from an extracted source release:
 
 ```sh
 git apply --check patches/compact-banner/hax-compact-banner-20260905-95e0179.diff

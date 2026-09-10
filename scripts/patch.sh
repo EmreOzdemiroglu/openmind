@@ -25,6 +25,12 @@ list)
 check|apply|reverse) ;;
 *) usage ;;
 esac
+
+if ! command -v git >/dev/null 2>&1; then
+    printf '%s\n' 'error: git required; install git to check, apply, or reverse patches' >&2
+    exit 1
+fi
+
 [ "$#" -eq 1 ] || usage
 name=$1
 case $name in

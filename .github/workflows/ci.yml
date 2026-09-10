@@ -70,6 +70,8 @@ jobs:
   patches:
     name: patch / ${{ matrix.patch }}
     runs-on: ubuntu-26.04
+    env:
+      HAX_CI_REQUIRE_GIT: '1'
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -79,6 +81,10 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install dependencies
         run: scripts/install_deps.sh ci lint
+      - name: Require Git
+        run: |
+          command -v git >/dev/null 2>&1
+          git --version
       - name: Test patch workflow
         run: python3 tests/test_patches.py
       - name: Apply patch
