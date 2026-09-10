@@ -36,6 +36,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
   truncation now keep their suffix, such as a read's line range, like the full header does.
 ### Added
 
+- Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
+  The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
 - Extract desktop notifications into an optional source patch (`notify@1`). The base binary
   no longer compiles or registers the `notify` setting or platform attention helpers.
 - Automated patch discovery and dual-target verification in CI, testing active catalog patches
@@ -52,6 +54,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
+  The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
 - Extract desktop notifications into an optional source patch (`notify@1`). The base binary
   no longer compiles or registers the `notify` setting or platform attention helpers.
 - Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
@@ -115,6 +119,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
+  The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
 - Extract desktop notifications into an optional source patch (`notify@1`). The base binary
   no longer compiles or registers the `notify` setting or platform attention helpers.
 - Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
@@ -181,6 +187,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
+  The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
 - Extract desktop notifications into an optional source patch (`notify@1`). The base binary
   no longer compiles or registers the `notify` setting or platform attention helpers.
 - Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
@@ -223,6 +231,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
+  The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
 - Extract desktop notifications into an optional source patch (`notify@1`). The base binary
   no longer compiles or registers the `notify` setting or platform attention helpers.
 - Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),

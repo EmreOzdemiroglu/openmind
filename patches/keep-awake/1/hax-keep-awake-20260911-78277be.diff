@@ -1,0 +1,371 @@
+diff --git a/docs/configuration.md b/docs/configuration.md
+index 84b6d27..83f8e6a 100644
+--- a/docs/configuration.md
++++ b/docs/configuration.md
+@@ -238,6 +238,7 @@ provider-dependent.
+ | `display_width` | `HAX_DISPLAY_WIDTH` | `auto` | `auto`, `terminal`, or an exact width of at least 20 columns. |
+ | `theme` | `HAX_THEME` | `auto` | `auto`, `dark`, `light`, `ansi`, or `off`. |
+ | `tint` | `HAX_TINT` | `teal` | Model-output tint: `teal`, `violet`, `rose`, or `sage`. |
++| `keep_awake` | `HAX_KEEP_AWAKE` | on | Best-effort idle-sleep inhibition while a turn runs. |
+ | `compact.auto` | `HAX_COMPACT_AUTO` | on | Automatically summarize history near the context limit. |
+ | `compact.threshold` | `HAX_COMPACT_THRESHOLD` | `85` | Context percentage that triggers automatic compaction. |
+ | `max_turns` | `HAX_MAX_TURNS` | `auto` | Model round-trips per user turn: interactive pauses, one-shot aborts. `auto`: unlimited interactively, 100 in one-shot. |
+diff --git a/meson.build b/meson.build
+index 617a0b6..e7912de 100644
+--- a/meson.build
++++ b/meson.build
+@@ -155,6 +155,7 @@ sources = files(
+     'src/system/fd.c',
+     'src/system/fs.c',
+     'src/system/git.c',
++    'src/system/keepawake.c',
+     'src/system/locale.c',
+     'src/system/os.c',
+     'src/system/path.c',
+diff --git a/src/agent_loop.c b/src/agent_loop.c
+index eb384d6..510d851 100644
+--- a/src/agent_loop.c
++++ b/src/agent_loop.c
+@@ -16,6 +16,7 @@
+ #include "turn.h"
+ #include "xalloc.h"
+ #include "system/clock.h"
++#include "system/keepawake.h"
+ #include "tools/task_registry.h"
+ #include "transport/http.h"
+ 
+@@ -498,7 +499,9 @@ static void loop_run_active(const struct agent_loop_params *params,
+ 
+ void agent_loop_run(const struct agent_loop_params *params, struct agent_loop_result *result)
+ {
++    keepawake_acquire();
+     loop_run_active(params, result);
++    keepawake_release();
+ }
+ 
+ void agent_loop_result_destroy(struct agent_loop_result *result)
+diff --git a/src/config.c b/src/config.c
+index d413196..94b3e9a 100644
+--- a/src/config.c
++++ b/src/config.c
+@@ -76,6 +76,9 @@ static const struct config_setting REGISTRY[] = {
+      .choices = "teal|violet|rose|sage", .editable = 1},
+ 
+     /* behavior */
++    {.key = "keep_awake", .env_var = "HAX_KEEP_AWAKE", .default_value = "1",
++     .description = "Inhibit idle system sleep while a turn is running (display may still blank)",
++     .choices = CONFIG_CHOICES_BOOL, .editable = 1},
+     {.key = "compact.auto", .env_var = "HAX_COMPACT_AUTO", .default_value = "1",
+      .description = "Auto-summarize history when it nears the context window "
+                     "(manual /compact still works)",
+diff --git a/src/oneshot.c b/src/oneshot.c
+index b0e935c..8083570 100644
+--- a/src/oneshot.c
++++ b/src/oneshot.c
+@@ -580,7 +580,7 @@ static int finish_run(struct oneshot_state *state, const struct agent_loop_resul
+     if (state->json)
+         emit_json_items(state);
+     int result = handle_loop_result(state, loop_result, max_turns);
+-    /* The loop tears down  after its last cancellation check, so a stop can land
++    /* The loop tears down (keepawake) after its last cancellation check, so a stop can land
+      * with the outcome already decided. The recorded outcome stands — the work finished — but
+      * the exit status must not report success the user cancelled. */
+     if (result == 0 && interrupt_abort_requested())
+diff --git a/src/system/keepawake.c b/src/system/keepawake.c
+new file mode 100644
+index 0000000..5608934
+--- /dev/null
++++ b/src/system/keepawake.c
+@@ -0,0 +1,125 @@
++/* SPDX-License-Identifier: MIT */
++#include "system/keepawake.h"
++
++#include <signal.h>
++#include <unistd.h>
++
++#include "config.h"
++#include "system/spawn.h"
++
++#ifdef __APPLE__
++#include <stdio.h>
++#elif defined(__linux__)
++#include <stdlib.h>
++#endif
++
++/* Calls occur on the main thread at the user-turn boundary. */
++static pid_t helper_pid;
++
++static void reap_dead_helper(void)
++{
++    if (helper_pid > 0 && spawn_reap_if_exited(helper_pid))
++        helper_pid = 0;
++}
++
++#if defined(__APPLE__) || defined(__linux__)
++static const char *resolve_executable(const char *const *candidates)
++{
++    for (size_t i = 0; candidates[i]; i++)
++        if (access(candidates[i], X_OK) == 0)
++            return candidates[i];
++    return NULL;
++}
++#endif
++
++#ifdef __linux__
++static int systemd_inhibit_supports_no_ask_password(const char *path)
++{
++    static int supported = -1;
++    if (supported >= 0)
++        return supported;
++
++    /* The option and interactive polkit agent were introduced together in systemd v257. Probe the
++     * option instead of parsing a version so distro backports work too. */
++    const char *const argv[] = {path, "--no-ask-password", "--version", NULL};
++    size_t output_len;
++    char *output = spawn_capture_stdout(argv, 4096, 1000, &output_len);
++    supported = output != NULL;
++    free(output);
++    return supported;
++}
++#endif
++
++static void spawn_helper(void)
++{
++#if defined(__APPLE__) || defined(__linux__)
++    pid_t parent_pid = getpid();
++    /* Resolve before fork; PATH lookup may allocate and deadlock after a multithreaded fork. */
++#ifdef __APPLE__
++    static const char *const candidates[] = {"/usr/bin/caffeinate", NULL};
++    const char *helper_path = resolve_executable(candidates);
++    if (!helper_path)
++        return;
++
++    char parent_pid_arg[16];
++    snprintf(parent_pid_arg, sizeof(parent_pid_arg), "%d", (int)parent_pid);
++    char *const argv[] = {(char *)"caffeinate", (char *)"-i", (char *)"-w", parent_pid_arg, NULL};
++#elif defined(__linux__)
++    static const char *const candidates[] = {"/usr/bin/systemd-inhibit", "/bin/systemd-inhibit",
++                                             NULL};
++    static const char *const sleep_candidates[] = {"/usr/bin/sleep", "/bin/sleep", NULL};
++    const char *helper_path = resolve_executable(candidates);
++    const char *sleep_path = resolve_executable(sleep_candidates);
++    if (!helper_path || !sleep_path)
++        return;
++
++    /* systemd-inhibit uses execvp() for its command; keep PATH out of the trust boundary. */
++    char *argv[9];
++    size_t argc = 0;
++    argv[argc++] = (char *)"systemd-inhibit";
++    if (systemd_inhibit_supports_no_ask_password(helper_path))
++        argv[argc++] = (char *)"--no-ask-password";
++    argv[argc++] = (char *)"--what=idle";
++    argv[argc++] = (char *)"--mode=block";
++    argv[argc++] = (char *)"--who=hax";
++    argv[argc++] = (char *)"--why=hax is running a turn";
++    argv[argc++] = (char *)sleep_path;
++    argv[argc++] = (char *)"2147483647"; /* INT32_MAX seconds; release ends it first. */
++    argv[argc] = NULL;
++#endif
++
++    pid_t pid = fork();
++    if (pid < 0)
++        return;
++    if (pid == 0) {
++        /* Linux uses PDEATHSIG; caffeinate -w provides the same orphan cleanup on macOS. */
++        spawn_child_die_with_parent(parent_pid, SIGTERM);
++        spawn_child_reset_signals();
++        spawn_child_redirect_stdio_to_null();
++        execv(helper_path, argv);
++        _exit(127);
++    }
++    helper_pid = pid;
++#endif
++}
++
++void keepawake_acquire(void)
++{
++    if (!config_bool_or("keep_awake", 1))
++        return;
++    reap_dead_helper();
++    if (helper_pid > 0)
++        return;
++    spawn_helper();
++}
++
++void keepawake_release(void)
++{
++    if (helper_pid <= 0)
++        return;
++    kill(helper_pid, SIGTERM);
++    /* A helper that survives SIGTERM (caffeinate has been seen wedged on virtualized
++     * macOS) must not hang the turn boundary; escalate instead of waiting forever. */
++    (void)spawn_wait_child_timeout(helper_pid, 500);
++    helper_pid = 0;
++}
+diff --git a/src/system/keepawake.h b/src/system/keepawake.h
+new file mode 100644
+index 0000000..8c3231e
+--- /dev/null
++++ b/src/system/keepawake.h
+@@ -0,0 +1,11 @@
++/* SPDX-License-Identifier: MIT */
++#ifndef HAX_SYSTEM_KEEPAWAKE_H
++#define HAX_SYSTEM_KEEPAWAKE_H
++
++/* Best-effort idle system sleep inhibition. Display blanking is unaffected. Unsupported platforms,
++ * disabled configuration, missing platform support, and runtime failures are silent no-ops. Acquire
++ * and release are idempotent; acquire is gated by the `keep_awake` config key. */
++void keepawake_acquire(void);
++void keepawake_release(void);
++
++#endif /* HAX_SYSTEM_KEEPAWAKE_H */
+diff --git a/tests/meson.build b/tests/meson.build
+index 440915c..3a32da0 100644
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -85,6 +85,7 @@ test_sources = [
+     'system/test_fd.c',
+     'system/test_fs.c',
+     'system/test_git.c',
++    'system/test_keepawake.c',
+     'system/test_locale.c',
+     'system/test_os.c',
+     'system/test_path.c',
+diff --git a/tests/system/test_keepawake.c b/tests/system/test_keepawake.c
+new file mode 100644
+index 0000000..619f893
+--- /dev/null
++++ b/tests/system/test_keepawake.c
+@@ -0,0 +1,108 @@
++/* SPDX-License-Identifier: MIT */
++#include <errno.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <time.h>
++#include <unistd.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <sys/wait.h>
++
++#include "config.h"
++#include "harness.h"
++#include "xalloc.h"
++#include "system/keepawake.h"
++
++static void expect_no_children(void)
++{
++    int status;
++    errno = 0;
++    pid_t child = waitpid(-1, &status, WNOHANG);
++    EXPECT(child == -1 && errno == ECHILD);
++}
++
++static void test_release_without_acquire(void)
++{
++    keepawake_release();
++    expect_no_children();
++}
++
++static void test_acquire_release_cycle(void)
++{
++    keepawake_acquire();
++    keepawake_release();
++    expect_no_children();
++}
++
++static void test_double_acquire(void)
++{
++    keepawake_acquire();
++    keepawake_acquire();
++    keepawake_release();
++    expect_no_children();
++}
++
++static void test_disabled_is_noop(void)
++{
++    config_set_override("keep_awake", "0");
++    keepawake_acquire();
++    expect_no_children();
++    keepawake_release();
++    config_set_override("keep_awake", "1");
++}
++
++static void test_sleep_not_resolved_via_path(void)
++{
++    char *dir = t_tempdir();
++    char *fake_sleep = xasprintf("%s/sleep", dir);
++    char *marker = xasprintf("%s/ran", dir);
++
++    FILE *file = fopen(fake_sleep, "w");
++    EXPECT(file != NULL);
++    if (!file)
++        goto out;
++    fprintf(file, "#!/bin/sh\ntouch '%s'\n", marker);
++    fclose(file);
++    chmod(fake_sleep, 0755);
++
++    const char *current_path = getenv("PATH");
++    char *saved_path = current_path ? xstrdup(current_path) : NULL;
++    char *test_path = xasprintf("%s:%s", dir, saved_path ? saved_path : "");
++    setenv("PATH", test_path, 1);
++    free(test_path);
++
++    keepawake_acquire();
++    int fake_ran = 0;
++    for (int i = 0; i < 50 && !fake_ran; i++) {
++        fake_ran = access(marker, F_OK) == 0;
++        if (!fake_ran) {
++            struct timespec delay = {0, 10 * 1000000};
++            nanosleep(&delay, NULL);
++        }
++    }
++    keepawake_release();
++
++    EXPECT(!fake_ran);
++
++    if (saved_path) {
++        setenv("PATH", saved_path, 1);
++        free(saved_path);
++    } else {
++        unsetenv("PATH");
++    }
++
++out:
++    free(marker);
++    free(fake_sleep);
++}
++
++int main(void)
++{
++    config_set_override("keep_awake", "1");
++    test_release_without_acquire();
++    test_acquire_release_cycle();
++    test_double_acquire();
++    test_disabled_is_noop();
++    test_sleep_not_resolved_via_path();
++    T_REPORT();
++}
+diff --git a/tests/test_agent_loop.c b/tests/test_agent_loop.c
+index e6cfdc3..5ea55b0 100644
+--- a/tests/test_agent_loop.c
++++ b/tests/test_agent_loop.c
+@@ -1377,6 +1377,7 @@ static void test_loop_injects_finished_task_note(void)
+ int main(void)
+ {
+     /* Loop tests exercise orchestration, not the platform inhibitor helper. */
++    config_set_override("keep_awake", "0");
+     test_loop_turn_collects_success();
+     test_loop_passes_conversation_id_to_provider();
+     test_partial_error_is_preserved();
+diff --git a/tests/test_oneshot.c b/tests/test_oneshot.c
+index 751c639..2e997a3 100644
+--- a/tests/test_oneshot.c
++++ b/tests/test_oneshot.c
+@@ -122,6 +122,7 @@ static void configure_test_run(void)
+     config_set_override("no_tasks", "1");
+     config_set_override("transcript", "");
+     /* Never fork real power-management helpers (caffeinate / systemd-inhibit). */
++    config_set_override("keep_awake", "0");
+ }
+ 
+ static void test_final_messages_are_pipeable(void)
