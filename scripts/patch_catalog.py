@@ -378,12 +378,130 @@ def compare_catalogs(old_cat: dict[str, dict[int, dict]], new_cat: dict[str, dic
                     )
 
 
+def validate_recipe(recipe_path: Path, repo_root: Path) -> dict:
+    if not recipe_path.is_file():
+        raise CatalogError(f"recipe file '{recipe_path}' does not exist")
+
+    try:
+        data = json.loads(recipe_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise CatalogError(f"malformed JSON in '{recipe_path}': {e}")
+
+    if not isinstance(data, dict):
+        raise CatalogError(f"in '{recipe_path}': recipe must be a JSON object")
+
+    required_keys = {"schema", "base_commit", "patches"}
+    allowed_keys = {"schema", "base_commit", "patches", "defaults"}
+    if not required_keys.issubset(data.keys()) or not set(data.keys()).issubset(allowed_keys):
+        raise CatalogError(f"in '{recipe_path}': invalid recipe fields")
+
+    if data["schema"] != 1 or isinstance(data["schema"], bool):
+        raise CatalogError(f"in '{recipe_path}': unsupported schema {data['schema']}, expected 1")
+
+    base_commit = data["base_commit"]
+    if not isinstance(base_commit, str) or not COMMIT_RE.fullmatch(base_commit):
+        raise CatalogError(f"in '{recipe_path}': base_commit must be exactly 40 lowercase hex characters")
+
+    res = subprocess.run(
+        ["git", "cat-file", "-e", f"{base_commit}^{{commit}}"],
+        capture_output=True, cwd=repo_root,
+    )
+    if res.returncode != 0:
+        raise CatalogError(f"in '{recipe_path}': base_commit '{base_commit}' does not resolve to a local commit")
+
+    patches_list = data["patches"]
+    if not isinstance(patches_list, list):
+        raise CatalogError(f"in '{recipe_path}': patches must be a list")
+
+    catalog = load_catalog(repo_root, check_commits=True)
+    all_entries = entry_map(catalog) if "entry_map" in globals() else {
+        f"{f}@{r}": d for f, revs in catalog.items() for r, d in revs.items()
+    }
+
+    seen_features = set()
+    seen_ids = set()
+    ordered_ids = []
+
+    for item in patches_list:
+        if not isinstance(item, dict) or set(item.keys()) != {"id", "sha256"}:
+            raise CatalogError(f"in '{recipe_path}': each patch entry must have exactly 'id' and 'sha256'")
+        patch_id = item["id"]
+        sha256 = item["sha256"]
+
+        if not isinstance(patch_id, str) or "@" not in patch_id:
+            raise CatalogError(f"in '{recipe_path}': patch id must be exact selector ('feature@revision'): '{patch_id}'")
+        if not isinstance(sha256, str) or not SHA256_RE.fullmatch(sha256):
+            raise CatalogError(f"in '{recipe_path}': sha256 must be exactly 64 lowercase hex characters")
+
+        if patch_id in seen_ids:
+            raise CatalogError(f"in '{recipe_path}': duplicate patch id '{patch_id}'")
+        seen_ids.add(patch_id)
+
+        feat, rev = parse_selector(patch_id)
+        if feat in seen_features:
+            raise CatalogError(f"in '{recipe_path}': duplicate feature '{feat}' in patch list")
+        seen_features.add(feat)
+
+        if patch_id not in all_entries:
+            raise CatalogError(f"in '{recipe_path}': patch '{patch_id}' not found in catalog")
+
+        entry = all_entries[patch_id]
+        if entry["base_commit"] != base_commit:
+            raise CatalogError(
+                f"in '{recipe_path}': patch '{patch_id}' base '{entry['base_commit']}' does not match recipe base '{base_commit}'"
+            )
+
+        if entry["sha256"] != sha256:
+            raise CatalogError(
+                f"in '{recipe_path}': sha256 mismatch for '{patch_id}': expected '{entry['sha256']}', got '{sha256}'"
+            )
+
+        for req in entry["requires"]:
+            if req not in ordered_ids:
+                raise CatalogError(
+                    f"in '{recipe_path}': requirement '{req}' for '{patch_id}' must appear earlier in list"
+                )
+
+        for conf in entry["conflicts"]:
+            if conf in seen_features:
+                raise CatalogError(f"in '{recipe_path}': patch '{patch_id}' conflicts with '{conf}'")
+
+        ordered_ids.append(patch_id)
+
+    # Check defaults if present
+    if "defaults" in data:
+        defaults_info = data["defaults"]
+        if not isinstance(defaults_info, dict) or set(defaults_info.keys()) != {"path", "sha256"}:
+            raise CatalogError(f"in '{recipe_path}': defaults entry must have exactly 'path' and 'sha256'")
+        d_path_str = defaults_info["path"]
+        d_sha = defaults_info["sha256"]
+        if not isinstance(d_path_str, str) or Path(d_path_str).is_absolute() or ".." in Path(d_path_str).parts:
+            raise CatalogError(f"in '{recipe_path}': defaults path '{d_path_str}' must be relative without traversal")
+        if not isinstance(d_sha, str) or not SHA256_RE.fullmatch(d_sha):
+            raise CatalogError(f"in '{recipe_path}': defaults sha256 must be exactly 64 lowercase hex characters")
+
+        recipe_dir = recipe_path.parent
+        resolved_defaults = recipe_dir / d_path_str
+        if not resolved_defaults.is_file() or resolved_defaults.is_symlink():
+            raise CatalogError(f"in '{recipe_path}': defaults file '{d_path_str}' does not exist or is symlink")
+
+        actual_d_sha = hashlib.sha256(resolved_defaults.read_bytes()).hexdigest()
+        if actual_d_sha != d_sha:
+            raise CatalogError(
+                f"in '{recipe_path}': defaults digest mismatch: expected '{d_sha}', got '{actual_d_sha}'"
+            )
+
+    return data
+
+
 def main():
     parser = argparse.ArgumentParser(description="Patch catalog manager")
     sub = parser.add_subparsers(dest="subcommand", required=True)
 
     sub.add_parser("list")
     sub.add_parser("check")
+    rc = sub.add_parser("recipe-check")
+    rc.add_argument("recipe", help="path to recipe JSON file")
     insp = sub.add_parser("inspect")
     insp.add_argument("selector", help="feature or feature@revision")
     res = sub.add_parser("resolve")
@@ -407,6 +525,9 @@ def main():
                     print(f"{feat}@{rev}{status_str}")
         elif args.subcommand == "check":
             print(f"catalog OK ({sum(len(r) for r in catalog.values())} patches)")
+        elif args.subcommand == "recipe-check":
+            recipe_data = validate_recipe(Path(args.recipe), root)
+            print(f"recipe OK: base {recipe_data["base_commit"]}, {len(recipe_data["patches"])} patches")
         elif args.subcommand == "inspect":
             entry, diff_path = resolve_selector(catalog, args.selector)
             print(f"Feature:     {entry['feature']}")

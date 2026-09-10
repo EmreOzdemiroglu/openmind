@@ -38,6 +38,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
   truncation now keep their suffix, such as a read's line range, like the full header does.
 ### Added
 
+- Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
+  an immutable base commit, exact ordered patch sequence, and optional personal defaults.
 - Support personal compiled display defaults via `config.def.h` template and optional
   personal `config.h` selected via Meson option `personal_defaults`.
 - Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
@@ -61,6 +63,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
+  an immutable base commit, exact ordered patch sequence, and optional personal defaults.
 - Support personal compiled display defaults via `config.def.h` template and optional
   personal `config.h` selected via Meson option `personal_defaults`.
 - Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
@@ -133,6 +137,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
+  an immutable base commit, exact ordered patch sequence, and optional personal defaults.
 - Support personal compiled display defaults via `config.def.h` template and optional
   personal `config.h` selected via Meson option `personal_defaults`.
 - Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
@@ -208,6 +214,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
+  an immutable base commit, exact ordered patch sequence, and optional personal defaults.
 - Support personal compiled display defaults via `config.def.h` template and optional
   personal `config.h` selected via Meson option `personal_defaults`.
 - Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
@@ -259,6 +267,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
+  an immutable base commit, exact ordered patch sequence, and optional personal defaults.
 - Support personal compiled display defaults via `config.def.h` template and optional
   personal `config.h` selected via Meson option `personal_defaults`.
 - Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).

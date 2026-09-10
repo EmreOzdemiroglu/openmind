@@ -148,3 +148,27 @@ git format-patch -1 --stdout > /tmp/hax-my-feature-YYYYMMDD-BASEHASH.diff
 Create a new directory `patches/<feature>/<rev>/`, save the diff there, compute its SHA-256 digest,
 and write `patch.json`. Add documentation in `patches/<feature>/README.md`. Run
 `scripts/patch.sh catalog-check` to validate.
+
+## Custom-build recipes (Schema 1)
+
+A locked build recipe (`recipe.json`) pins a common base commit and an exact ordered sequence
+of catalog patches, plus optional personal defaults:
+
+```json
+{
+  "schema": 1,
+  "base_commit": "95e0179c00266601b2c8345981e98895b1250699",
+  "patches": [
+    {
+      "id": "compact-banner@1",
+      "sha256": "21b43358ea5bb86d18790f4d2283ce371ecf79c146a6f83a7c70d34bc34d098d"
+    }
+  ]
+}
+```
+
+Validate a recipe offline without modifying source or Git state:
+
+```sh
+scripts/patch.sh recipe-check path/to/recipe.json
+```

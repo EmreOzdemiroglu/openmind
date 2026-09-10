@@ -495,3 +495,105 @@ class PatchRunnerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RecipeTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="hax-recipe-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / "scripts").mkdir()
+        shutil.copy2(ROOT / "scripts/patch.sh", self.root / "scripts/patch.sh")
+        shutil.copy2(ROOT / "scripts/patch_catalog.py", self.root / "scripts/patch_catalog.py")
+
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=self.root, check=True)
+        (self.root / "first").write_text("base\n")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=self.root, check=True)
+        self.base_commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+        # Add two catalog patches: p1 and p2 (which requires p1)
+        p1_dir = self.root / "patches/p1/1"
+        p1_dir.mkdir(parents=True)
+        p1_diff = p1_dir / "p1.diff"
+        p1_diff.write_text("diff --git a/first b/first\n--- a/first\n+++ b/first\n@@ -1 +1 @@\n-base\n+p1\n")
+        p1_sha = hashlib.sha256(p1_diff.read_bytes()).hexdigest()
+        (p1_dir / "patch.json").write_text(json.dumps({
+            "schema": 1, "feature": "p1", "revision": 1, "base_commit": self.base_commit,
+            "diff": "p1.diff", "sha256": p1_sha, "requires": [], "conflicts": [], "status": "active"
+        }))
+
+        p2_dir = self.root / "patches/p2/1"
+        p2_dir.mkdir(parents=True)
+        p2_diff = p2_dir / "p2.diff"
+        p2_diff.write_text("diff --git a/second b/second\nnew file mode 100644\n--- /dev/null\n+++ b/second\n@@ -0,0 +1 @@\n+p2\n")
+        p2_sha = hashlib.sha256(p2_diff.read_bytes()).hexdigest()
+        (p2_dir / "patch.json").write_text(json.dumps({
+            "schema": 1, "feature": "p2", "revision": 1, "base_commit": self.base_commit,
+            "diff": "p2.diff", "sha256": p2_sha, "requires": ["p1@1"], "conflicts": [], "status": "active"
+        }))
+
+        self.p1_sha = p1_sha
+        self.p2_sha = p2_sha
+
+    def run_recipe_check(self, recipe_path, success=True):
+        res = subprocess.run(
+            [SHELL, str(self.root / "scripts/patch.sh"), "recipe-check", str(recipe_path)],
+            cwd=self.root, capture_output=True, text=True,
+        )
+        self.assertEqual(res.returncode == 0, success, res.stdout + res.stderr)
+        return res
+
+    def test_valid_recipe(self):
+        recipe = {
+            "schema": 1,
+            "base_commit": self.base_commit,
+            "patches": [
+                {"id": "p1@1", "sha256": self.p1_sha},
+                {"id": "p2@1", "sha256": self.p2_sha},
+            ]
+        }
+        rpath = self.root / "recipe.json"
+        rpath.write_text(json.dumps(recipe))
+        res = self.run_recipe_check(rpath)
+        self.assertIn("recipe OK", res.stdout)
+
+    def test_bad_dependency_order_rejected(self):
+        # p2 requires p1, so p2 cannot come before p1
+        recipe = {
+            "schema": 1,
+            "base_commit": self.base_commit,
+            "patches": [
+                {"id": "p2@1", "sha256": self.p2_sha},
+                {"id": "p1@1", "sha256": self.p1_sha},
+            ]
+        }
+        rpath = self.root / "recipe.json"
+        rpath.write_text(json.dumps(recipe))
+        res = self.run_recipe_check(rpath, success=False)
+        self.assertIn("must appear earlier in list", res.stderr)
+
+    def test_recipe_defaults(self):
+        def_file = self.root / "my_config.h"
+        def_file.write_text('#define HAX_DEFAULTS_SCHEMA 1\n#define HAX_DEFAULT_TINT "rose"\n')
+        def_sha = hashlib.sha256(def_file.read_bytes()).hexdigest()
+
+        recipe = {
+            "schema": 1,
+            "base_commit": self.base_commit,
+            "patches": [{"id": "p1@1", "sha256": self.p1_sha}],
+            "defaults": {"path": "my_config.h", "sha256": def_sha},
+        }
+        rpath = self.root / "recipe.json"
+        rpath.write_text(json.dumps(recipe))
+        self.run_recipe_check(rpath)
+
+        # Invalid digest fails
+        recipe["defaults"]["sha256"] = "0" * 64
+        rpath.write_text(json.dumps(recipe))
+        res = self.run_recipe_check(rpath, success=False)
+        self.assertIn("defaults digest mismatch", res.stderr)

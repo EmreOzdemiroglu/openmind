@@ -5,7 +5,7 @@ set -eu
 cd "$(dirname "$0")/.."
 
 usage() {
-    echo 'usage: scripts/patch.sh list | catalog-check | inspect <selector> | check|apply|reverse <selector>' >&2
+    echo 'usage: scripts/patch.sh list | catalog-check | inspect <selector> | recipe-check <recipe> | check|apply|reverse <selector>' >&2
     exit 2
 }
 
@@ -26,6 +26,15 @@ catalog-check)
         exit 1
     fi
     python3 scripts/patch_catalog.py check
+    exit 0
+    ;;
+recipe-check)
+    [ "$#" -eq 1 ] || usage
+    if ! command -v git >/dev/null 2>&1; then
+        printf '%s\n' 'error: git required; install git to check recipe base commit' >&2
+        exit 1
+    fi
+    python3 scripts/patch_catalog.py recipe-check "$1"
     exit 0
     ;;
 inspect)
