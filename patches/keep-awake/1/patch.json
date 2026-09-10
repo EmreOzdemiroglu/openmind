@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "feature": "keep-awake",
+  "revision": 1,
+  "base_commit": "78277be073aa9250794852c7559c15319f6950f4",
+  "diff": "hax-keep-awake-20260911-78277be.diff",
+  "sha256": "9634167f1867949d47a1b7d005733d026fabcaa01eb64346a6198afe0a508b1a",
+  "requires": [],
+  "conflicts": [],
+  "status": "active"
+}

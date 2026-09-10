@@ -33,7 +33,7 @@ test_sources = [
     'test_model_sort.c',
     'test_harness.c',
     'test_oneshot.c',
-    'test_paste_image.c',
+    'test_paste_uri.c',
     'test_provider.c',
     'test_select_config.c',
     'test_select_model.c',
@@ -85,7 +85,6 @@ test_sources = [
     'system/test_fd.c',
     'system/test_fs.c',
     'system/test_git.c',
-    'system/test_keepawake.c',
     'system/test_locale.c',
     'system/test_os.c',
     'system/test_path.c',
@@ -166,3 +165,6 @@ foreach name : e2e_scenarios
         timeout: 60,
     )
 endforeach
+
+test('patches', python, args: [files('test_patches.py')])
+test('defaults', python, args: [files('test_defaults.py')])

@@ -136,7 +136,6 @@ credential itself in JSON.
 ```json
 {
   "theme": "light",
-  "notify": "off",
   "display_width": 100
 }
 ```
@@ -237,10 +236,8 @@ provider-dependent.
 | `sort_models` | `HAX_SORT_MODELS` | `auto` | Sort model picker newest-first (`on`), keep server order (`off`), or use provider default (sorted unless the provider opts out). |
 | `context_limit` | `HAX_CONTEXT_LIMIT` | auto | Override the model context-window size used for display and compaction. |
 | `display_width` | `HAX_DISPLAY_WIDTH` | `auto` | `auto`, `terminal`, or an exact width of at least 20 columns. |
-| `notify` | `HAX_NOTIFY` | `auto` | Completion notification: `auto`, `bel`, `osc9`, or `off`. |
 | `theme` | `HAX_THEME` | `auto` | `auto`, `dark`, `light`, `ansi`, or `off`. |
 | `tint` | `HAX_TINT` | `teal` | Model-output tint: `teal`, `violet`, `rose`, or `sage`. |
-| `keep_awake` | `HAX_KEEP_AWAKE` | on | Best-effort idle-sleep inhibition while a turn runs. |
 | `compact.auto` | `HAX_COMPACT_AUTO` | on | Automatically summarize history near the context limit. |
 | `compact.threshold` | `HAX_COMPACT_THRESHOLD` | `85` | Context percentage that triggers automatic compaction. |
 | `max_turns` | `HAX_MAX_TURNS` | `auto` | Model round-trips per user turn: interactive pauses, one-shot aborts. `auto`: unlimited interactively, 100 in one-shot. |
@@ -266,9 +263,12 @@ rarely report a light background reliably, so set `light` explicitly if auto det
 | `catalog.refresh` | `HAX_CATALOG_REFRESH` | `24h` | Refresh age; `0` disables fetching. |
 
 hax uses model metadata for context limits, image capability, and estimated spend. It caches
-[models.dev](https://models.dev/api.json) data and refreshes it in the background only when needed.
-A stale cache remains usable. Set `catalog.url` empty or `catalog.refresh` to `0` to prevent network
-refreshes; an existing cache may still be read.
+[models.dev](https://models.dev/api.json) data and refreshes it in the background only when needed:
+a refresh starts only when a provider with a catalog identity is about to use the data (its first
+request, or a `/model` or `/effort` picker), and only when the cache is older than
+`catalog.refresh`. Local providers and custom providers without a `catalog_id` never cause a
+fetch. A stale cache remains usable. Set `catalog.url` empty or `catalog.refresh` to `0` to prevent
+network refreshes; an existing cache may still be read.
 
 Per-model overrides can be placed under `catalog.models`, with costs in USD per million tokens:
 
@@ -375,3 +375,13 @@ When model metadata has no output limit, `max_tokens` falls back internally to 3
 | `providers.mock.script` | `HAX_MOCK_SCRIPT` | — | Mock-provider script path. |
 
 Custom provider blocks are documented in [providers.md](./providers.md#custom-providers).
+
+## Personal compiled defaults
+
+When building from source, you can customize default display settings (`markdown`,
+`display_width`, `theme`, and `tint`) at compile time without modifying the source tree:
+
+1. Run `make config` to initialize a personal `config.h` from `config.def.h` if one does not already exist.
+2. Edit `config.h` with your preferred values (schema version macro `HAX_DEFAULTS_SCHEMA 1` is required).
+3. Reconfigure meson with `-Dpersonal_defaults=config.h`.
+4. Run `make check-defaults` or `make` to validate and compile with your defaults.

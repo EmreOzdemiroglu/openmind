@@ -16,7 +16,6 @@
 #include "turn.h"
 #include "xalloc.h"
 #include "system/clock.h"
-#include "system/keepawake.h"
 #include "tools/task_registry.h"
 #include "transport/http.h"
 
@@ -499,9 +498,7 @@ static void loop_run_active(const struct agent_loop_params *params,
 
 void agent_loop_run(const struct agent_loop_params *params, struct agent_loop_result *result)
 {
-    keepawake_acquire();
     loop_run_active(params, result);
-    keepawake_release();
 }
 
 void agent_loop_result_destroy(struct agent_loop_result *result)

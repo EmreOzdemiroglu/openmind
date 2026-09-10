@@ -77,6 +77,12 @@ stays on `PATH` across rebuilds. `make lint` additionally needs `clang-format` a
 
 The examples below use `hax` as if it is on `PATH`; after a plain build, use `./build/hax`.
 
+## Customize with patches
+
+Optional source changes live in the [patch catalog](patches/README.md). Apply a patch and rebuild
+to include that feature in your binary. See [the workflow](docs/patches.md) for checks, reversal,
+and publishing your own patches.
+
 ## Connect a provider
 
 The easiest first run is interactive: start `hax`, then use `/provider` to see available providers

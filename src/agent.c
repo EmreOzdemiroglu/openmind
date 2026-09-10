@@ -20,7 +20,6 @@
 #include "file_mention.h"
 #include "history.h"
 #include "model_meta.h"
-#include "paste_image.h"
 #include "provider.h"
 #include "select.h"
 #include "session.h"
@@ -40,7 +39,7 @@
 #include "terminal/ansi.h"
 #include "terminal/input.h"
 #include "terminal/interrupt.h"
-#include "terminal/notify.h"
+#include "terminal/paste_uri.h"
 #include "terminal/theme.h"
 #include "terminal/ui.h"
 #include "terminal/vt_resolve.h"
@@ -398,17 +397,11 @@ static int view_pager_open(struct spawn_pipe *pipe)
     return rc;
 }
 
-static char *capture_paste(void *user)
-{
-    (void)user;
-    return paste_image_capture();
-}
-
 /* Bracketed paste bypasses the Ctrl-V hook, so convert file URIs in the body filter too. */
 static char *filter_paste(const char *text, void *user)
 {
     (void)user;
-    return paste_image_uris_to_paths(text);
+    return paste_uri_list_to_paths(text);
 }
 
 /* View callbacks borrow agent_run's live state so vector growth and provider replacement cannot
@@ -1254,7 +1247,6 @@ int agent_run(struct provider **provider_io, const struct hax_opts *options)
     /* Prompt recall remains readable when recording is disabled. */
     input_history_open_default(input, recording_enabled);
     input_set_modal_completer(input, &file_mention_completer);
-    input_set_paste_hook(input, capture_paste, NULL);
     input_set_paste_filter(input, filter_paste, NULL);
     /* Transcript logging is optional; its API is NULL-safe. */
     struct transcript_log *transcript =
@@ -1402,16 +1394,16 @@ int agent_run(struct provider **provider_io, const struct hax_opts *options)
         /* Persist the prompt before entering a provider call that may hang or be interrupted. */
         agent_flush_logs(transcript, state.session_log, session.items, session.n_items);
 
-        /* Start the one-per-run catalog refresh while the model generates; warn only when stale
-         * data may distort estimates. */
-        if (current_provider->catalog_id) {
-            long stale_days = catalog_prefetch();
-            if (stale_days > 0) {
-                disp_block_separator(&render.disp);
-                ui_note("model catalog last refreshed %ld days ago — cost estimates may be stale",
-                        stale_days);
-                disp_sync_external_line(&render.disp);
-            }
+        /* The effort resync above normally started the catalog refresh; this covers a provider
+         * whose metadata path did not need it, and warns once about stale data at the first
+         * request whose estimates it may distort. */
+        model_meta_prefetch(current_provider);
+        long stale_days = catalog_stale_days();
+        if (stale_days > 0) {
+            disp_block_separator(&render.disp);
+            ui_note("model catalog last refreshed %ld days ago — cost estimates may be stale",
+                    stale_days);
+            disp_sync_external_line(&render.disp);
         }
 
         /* Each request subsumes the prior prefix, so the latest reported usage is the current
@@ -1500,11 +1492,6 @@ int agent_run(struct provider **provider_io, const struct hax_opts *options)
                      state.resume_reason == AGENT_RESUME_MAX_TURNS)
                 state.compaction_deferred = 1;
         }
-
-        /* Esc means the user is already present; otherwise notify when the REPL becomes idle,
-         * including errors and max-turn pauses. */
-        if (!user_pressed_escape)
-            notify_attention();
     }
 
     finalize_tasks(&state);

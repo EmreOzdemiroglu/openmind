@@ -48,7 +48,8 @@ process, and another config surface.
 
 Event hooks elsewhere serve a handful of needs, each of which hax answers more directly:
 
-- Notifications when the interactive REPL needs attention: built in (`notify`).
+- Notifications when the interactive REPL needs attention: available as an optional
+  source patch (see [docs/patches.md](patches.md)).
 - Observability and debugging: JSONL sessions record the conversation history — `hax --json`
   streams the same records live for a driving process — `HAX_TRANSCRIPT` shows the model-facing
   context, and `HAX_TRACE` captures redacted HTTP/SSE diagnostics.
@@ -110,4 +111,6 @@ either ship with macOS or be one `brew install` away, and must not be GPL.
 When something seems missing, the questions are, in order: can an `AGENTS.md` line or a skill
 cover it? Can a script around `hax -p` cover it? Would it be used routinely rather than
 configured once and forgotten? Only then does it belong in the binary — implemented directly,
-as a feature, not as a framework for features.
+as a feature, not as a framework for features. Features serving personal preferences or
+desktop platform conveniences belong in the source patch catalog ([docs/patches.md](patches.md))
+under the migration contract ([docs/core.md](core.md)).

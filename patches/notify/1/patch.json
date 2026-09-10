@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "feature": "notify",
+  "revision": 1,
+  "base_commit": "349d100df94bf48d711d45d88a0e602a74275412",
+  "diff": "hax-notify-20260911-349d100.diff",
+  "sha256": "fcf28752aed2308d3d44e8359d95ef52488b1070e6f57e9564d391a4c84a1e16",
+  "requires": [],
+  "conflicts": [],
+  "status": "active"
+}

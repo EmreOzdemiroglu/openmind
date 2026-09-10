@@ -1,0 +1,68 @@
+diff --git a/src/banner.c b/src/banner.c
+index 6732ce1..9e947b2 100644
+--- a/src/banner.c
++++ b/src/banner.c
+@@ -129,9 +129,4 @@ void banner_identity(FILE *out, const struct provider *provider,
+ void banner_print(const struct provider *provider, const struct agent_session *session)
+ {
+     banner_identity(stdout, provider, session);
+-    struct banner_writer w;
+-    banner_open(&w, stdout);
+-    banner_put(&w, "", ANSI_DIM, ANSI_BOLD_OFF, "ctrl-d quit");
+-    banner_put(&w, " · ", ANSI_DIM, ANSI_BOLD_OFF, "try /help");
+-    banner_close(&w);
+ }
+diff --git a/tests/test_agent.c b/tests/test_agent.c
+index f164e09..4d02d76 100644
+--- a/tests/test_agent.c
++++ b/tests/test_agent.c
+@@ -122,7 +122,7 @@ static void test_apply_settings_empty_reprints_banner(void)
+     EXPECT(f.result == 0);
+     EXPECT(strstr(out, "hax") != NULL);
+     EXPECT(strstr(out, "prov-x · model-a") != NULL);
+-    EXPECT(strstr(out, "ctrl-d quit") != NULL);
++    EXPECT(strstr(out, "ctrl-d quit") == NULL);
+     EXPECT(strstr(out, "switched to") == NULL);
+     /* The banner bypasses disp, so the branch must record its committed newline. */
+     EXPECT(f.render.disp.committed_newlines == 1);
+@@ -434,7 +434,7 @@ static void test_new_conversation_resets_everything(void)
+     EXPECT(memcmp(&f.state.stats, &zero, sizeof(zero)) == 0);
+     /* The fresh start is announced with the same banner as startup. */
+     EXPECT(strstr(out, "prov-x · model-a") != NULL);
+-    EXPECT(strstr(out, "ctrl-d quit") != NULL);
++    EXPECT(strstr(out, "ctrl-d quit") == NULL);
+ 
+     free(out);
+     fixture_free(&f);
+diff --git a/tests/test_banner.c b/tests/test_banner.c
+index 8e42163..ccc2816 100644
+--- a/tests/test_banner.c
++++ b/tests/test_banner.c
+@@ -134,7 +134,7 @@ static void test_identity_prefers_model_label(void)
+     free(out);
+ }
+ 
+-static void test_print_adds_key_tips(void)
++static void test_print_only_identity(void)
+ {
+     setenv("HAX_DISPLAY_WIDTH", "100", 1);
+     struct provider provider = {.name = "mock"};
+@@ -159,8 +159,7 @@ static void test_print_adds_key_tips(void)
+     fclose(tmp);
+ 
+     char *out = strip_sgr(raw);
+-    EXPECT_STR_EQ(out, "▌ hax › mock · model-a\n"
+-                       "▌ ctrl-d quit · try /help\n");
++    EXPECT_STR_EQ(out, "▌ hax › mock · model-a\n");
+     free(out);
+ }
+ 
+@@ -180,7 +179,7 @@ int main(void)
+     test_identity_no_model_wraps_on_narrow_terminal();
+     test_identity_shows_preset_stance();
+     test_identity_prefers_model_label();
+-    test_print_adds_key_tips();
++    test_print_only_identity();
+ 
+     T_REPORT();
+ }

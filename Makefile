@@ -28,3 +28,13 @@ symlink: all
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+config:
+	@if [ ! -f config.h ]; then \
+		cp config.def.h config.h && echo "initialized config.h from config.def.h"; \
+	else \
+		echo "config.h already exists; keeping existing configuration"; \
+	fi
+
+check-defaults:
+	@python3 scripts/generate_defaults.py . "$$(meson configure $(BUILD_DIR) 2>/dev/null | awk -F: '/personal_defaults/ {gsub(/[[:space:]]/, "", $$2); print $$2}')" /dev/null

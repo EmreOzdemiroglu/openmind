@@ -67,8 +67,6 @@ struct input {
     const struct input_modal_completer *completer;
 
     /* Returns malloc'd insertion text. Empty bracketed pastes also invoke this hook. */
-    char *(*paste_hook)(void *user);
-    void *paste_hook_user;
 
     /* Returns a malloc'd replacement, or NULL to preserve the paste body. */
     char *(*paste_filter)(const char *text, void *user);

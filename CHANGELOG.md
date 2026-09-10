@@ -7,10 +7,83 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ## [Unreleased]
 
+### Changed
+
+- Separate clipboard capture from copy/OSC 52 and isolate local file URI conversion into
+  its own module (`terminal/paste_uri.{c,h}`).
+- Custom providers no longer take their models.dev catalog identity from their own name; set
+  `catalog_id` explicitly (for example `"catalog_id": "groq"`) to keep pricing and context
+  metadata. Local servers and proxies without one never contact models.dev. See
+  [docs/providers.md](docs/providers.md#custom-providers).
+- `/model` and `/effort` wait briefly for the model catalog refresh, so pricing and context
+  columns appear even on a cold cache.
+- The collapsed preview for read-only bash commands now tolerates `echo`, `printf`, `true`, and
+  `false` between exploration commands, such as the `echo ---` separators some models place
+  between searches, and covers read-only git subcommands like `log`, `show`, `diff`, `status`,
+  and `blame`, including behind global options such as `-C`.
+
+### Fixed
+
+- CI now discovers active catalog patches, validates their dependency closures, and verifies them
+  against both their recorded base commits and the current candidate source.
+- Manual catalog patch operations now validate the selected artifact and restricted text diff
+  format before using Git's working-tree-only apply semantics, preserving staged and unrelated
+  changes while reporting recorded-base compatibility.
+- Patch workflow tests now require Git in CI, while `scripts/patch.sh list` remains usable in
+  Git-less source snapshots and other patch actions report a clear prerequisite error.
+- `config.json` and `state.json` are now written with a trailing newline, matching `auth.json`
+  and session files.
+- The brief history shown on resume now names the task a `task_wait` call waited on, as the
+  live header does, instead of a bare `[task_wait]` line. Collapsed tool rows that need
+  truncation now keep their suffix, such as a read's line range, like the full header does.
+### Added
+
+- Support building and verifying prepared source trees (`scripts/patch.sh build|verify DEST`)
+  with tamper checking against `receipt.json` and output recorded in `build-result.json`.
+- Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
+  producing an isolated source tree and verifiable `receipt.json` files inventory.
+- Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
+  an immutable base commit, exact ordered patch sequence, and optional personal defaults.
+- Support personal compiled display defaults via `config.def.h` template and optional
+  personal `config.h` selected via Meson option `personal_defaults`.
+- Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
+  The base binary retains copy and bracketed-paste file URI conversion while omitting platform
+  capture helpers and the Ctrl-V paste hook.
+- Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
+  The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
+- Extract desktop notifications into an optional source patch (`notify@1`). The base binary
+  no longer compiles or registers the `notify` setting or platform attention helpers.
+- Automated patch discovery and dual-target verification in CI, testing active catalog patches
+  against both their recorded base and candidate source to catch drift.
+- Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
+  status inspection, catalog-check validation, and migration of compact-banner into revision 1.
+- Policy and architecture documentation defining the hax core and optional-feature migration
+  contract, including inclusion rules, extraction checklist, and glossary. See
+  [docs/core.md](docs/core.md).
+- A source patch catalog with check, apply, and reverse commands, CI verification, and an optional
+  compact banner. See [docs/patches.md](docs/patches.md) to customize and rebuild hax.
+
 ## [0.5.0] - 2026-09-04
 
 ### Added
 
+- Support building and verifying prepared source trees (`scripts/patch.sh build|verify DEST`)
+  with tamper checking against `receipt.json` and output recorded in `build-result.json`.
+- Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
+  producing an isolated source tree and verifiable `receipt.json` files inventory.
+- Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
+  an immutable base commit, exact ordered patch sequence, and optional personal defaults.
+- Support personal compiled display defaults via `config.def.h` template and optional
+  personal `config.h` selected via Meson option `personal_defaults`.
+- Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
+  The base binary retains copy and bracketed-paste file URI conversion while omitting platform
+  capture helpers and the Ctrl-V paste hook.
+- Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
+  The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
+- Extract desktop notifications into an optional source patch (`notify@1`). The base binary
+  no longer compiles or registers the `notify` setting or platform attention helpers.
+- Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
+  status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - `hax --json` (implies `-p`) streams new conversation records as JSONL, followed by a `result`
   record with the outcome, final text, cost, and session id. Plain `-p` output is unchanged, and
   the session-file schema is now a supported read surface. See [docs/sessions.md](docs/sessions.md).
@@ -27,6 +100,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Changed
 
+- Separate clipboard capture from copy/OSC 52 and isolate local file URI conversion into
+  its own module (`terminal/paste_uri.{c,h}`).
 - Anthropic-protocol models on OpenCode Zen/Go and `anthropic-compatible` endpoints now use prompt
   caching and choose adaptive or budget thinking from model metadata, as first-party Anthropic now
   does. `thinking_mode` adds `auto` (the default) and `prefer-adaptive`.
@@ -70,6 +145,23 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support building and verifying prepared source trees (`scripts/patch.sh build|verify DEST`)
+  with tamper checking against `receipt.json` and output recorded in `build-result.json`.
+- Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
+  producing an isolated source tree and verifiable `receipt.json` files inventory.
+- Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
+  an immutable base commit, exact ordered patch sequence, and optional personal defaults.
+- Support personal compiled display defaults via `config.def.h` template and optional
+  personal `config.h` selected via Meson option `personal_defaults`.
+- Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
+  The base binary retains copy and bracketed-paste file URI conversion while omitting platform
+  capture helpers and the Ctrl-V paste hook.
+- Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
+  The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
+- Extract desktop notifications into an optional source patch (`notify@1`). The base binary
+  no longer compiles or registers the `notify` setting or platform attention helpers.
+- Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
+  status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - OpenCode Zen and Go providers (`opencode-zen`, `opencode-go`): set `OPENCODE_API_KEY`, choose a
   model, and hax selects the API it needs. `/usage` shows OpenCode Go's subscription limits. See
   [docs/providers.md](docs/providers.md#opencode-zen-and-go).
@@ -89,6 +181,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Changed
 
+- Separate clipboard capture from copy/OSC 52 and isolate local file URI conversion into
+  its own module (`terminal/paste_uri.{c,h}`).
 - **Breaking:** provider settings now belong to `providers.<id>` blocks and no longer leak between
   endpoints. Several keys and environment variables changed scope; users with advanced provider
   configuration should revisit [docs/providers.md](docs/providers.md) and
@@ -132,6 +226,23 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support building and verifying prepared source trees (`scripts/patch.sh build|verify DEST`)
+  with tamper checking against `receipt.json` and output recorded in `build-result.json`.
+- Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
+  producing an isolated source tree and verifiable `receipt.json` files inventory.
+- Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
+  an immutable base commit, exact ordered patch sequence, and optional personal defaults.
+- Support personal compiled display defaults via `config.def.h` template and optional
+  personal `config.h` selected via Meson option `personal_defaults`.
+- Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
+  The base binary retains copy and bracketed-paste file URI conversion while omitting platform
+  capture helpers and the Ctrl-V paste hook.
+- Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
+  The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
+- Extract desktop notifications into an optional source patch (`notify@1`). The base binary
+  no longer compiles or registers the `notify` setting or platform attention helpers.
+- Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
+  status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - Installable via the `oleksandrchekhovskyi/hax` Homebrew tap. Each stable release points the
   formula at the published source tarball automatically.
 - `make install` and `make symlink` complete the from-source flow. `scripts/install_deps.sh`
@@ -142,6 +253,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Changed
 
+- Separate clipboard capture from copy/OSC 52 and isolate local file URI conversion into
+  its own module (`terminal/paste_uri.{c,h}`).
 - The `task_kill` tool is merged into `task_wait`: a `kill` argument stops the background task
   and returns its final output in the same call — immediately, or after `timeout_seconds` to
   give the task a last window to finish on its own. Stopping a task and collecting its output
@@ -170,6 +283,23 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support building and verifying prepared source trees (`scripts/patch.sh build|verify DEST`)
+  with tamper checking against `receipt.json` and output recorded in `build-result.json`.
+- Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
+  producing an isolated source tree and verifiable `receipt.json` files inventory.
+- Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
+  an immutable base commit, exact ordered patch sequence, and optional personal defaults.
+- Support personal compiled display defaults via `config.def.h` template and optional
+  personal `config.h` selected via Meson option `personal_defaults`.
+- Extract clipboard image capture into an optional source patch (`clipboard-capture@1`).
+  The base binary retains copy and bracketed-paste file URI conversion while omitting platform
+  capture helpers and the Ctrl-V paste hook.
+- Extract keep-awake idle sleep inhibition into an optional source patch (`keep-awake@1`).
+  The base binary runs without sleep-inhibition helpers or the `keep_awake` setting.
+- Extract desktop notifications into an optional source patch (`notify@1`). The base binary
+  no longer compiles or registers the `notify` setting or platform attention helpers.
+- Immutable versioned patch catalog entries (Schema 1) with exact selectors (`feature@rev`),
+  status inspection, catalog-check validation, and migration of compact-banner into revision 1.
 - Releases now include fully static Linux binaries for x86_64 and aarch64 with a `SHA256SUMS`
   file. Each tarball contains the binary as `hax`, ready to extract into `PATH`; it runs on any
   distribution with no dependencies.
@@ -180,6 +310,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Changed
 
+- Separate clipboard capture from copy/OSC 52 and isolate local file URI conversion into
+  its own module (`terminal/paste_uri.{c,h}`).
 - Unified diffs for write/edit results are computed by an in-tree diff implementation instead
   of shelling out to `diff`, so `diffutils` is no longer a runtime dependency and the write and
   edit tools work on minimal systems where `diff` is absent.

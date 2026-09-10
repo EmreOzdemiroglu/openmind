@@ -494,12 +494,12 @@ static int start_run(struct oneshot_state *state, const char *prompt,
     }
 
     state->started_ms = monotonic_ms();
-    if (provider->catalog_id) {
-        long stale_days = catalog_prefetch();
-        if (stale_days > 0)
-            hax_warn("model catalog last refreshed %ld days ago — cost estimates may be stale",
-                     stale_days);
-    }
+    /* The startup metadata wait normally started the catalog refresh already. */
+    model_meta_prefetch(provider);
+    long stale_days = catalog_stale_days();
+    if (stale_days > 0)
+        hax_warn("model catalog last refreshed %ld days ago — cost estimates may be stale",
+                 stale_days);
     return 0;
 }
 
@@ -580,7 +580,7 @@ static int finish_run(struct oneshot_state *state, const struct agent_loop_resul
     if (state->json)
         emit_json_items(state);
     int result = handle_loop_result(state, loop_result, max_turns);
-    /* The loop tears down (keepawake) after its last cancellation check, so a stop can land
+    /* The loop tears down  after its last cancellation check, so a stop can land
      * with the outcome already decided. The recorded outcome stands — the work finished — but
      * the exit status must not report success the user cancelled. */
     if (result == 0 && interrupt_abort_requested())

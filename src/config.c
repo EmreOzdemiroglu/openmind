@@ -1,18 +1,15 @@
+#include "compiled_defaults.h"
 /* SPDX-License-Identifier: MIT */
-#include "config.h"
-
 #include <ctype.h>
 #include <errno.h>
 #include <jansson.h>
-#include <libgen.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <unistd.h>
-#include <sys/stat.h>
 
+#include "config.h"
 #include "diag.h"
 #include "provider.h"
 #include "xalloc.h"
@@ -53,7 +50,7 @@ static const struct config_setting REGISTRY[] = {
                     "task tools are not offered"},
 
     /* display */
-    {.key = "markdown", .env_var = "HAX_MARKDOWN", .default_value = "1",
+    {.key = "markdown", .env_var = "HAX_MARKDOWN", .default_value = HAX_DEFAULT_MARKDOWN,
      .description = "Render Markdown in the terminal (TTY only; piped output is always raw)",
      .choices = CONFIG_CHOICES_BOOL, .editable = 1},
     {.key = "show_reasoning", .env_var = "HAX_SHOW_REASONING",
@@ -65,27 +62,20 @@ static const struct config_setting REGISTRY[] = {
     {.key = "context_limit", .env_var = "HAX_CONTEXT_LIMIT",
      .description = "Manual context-window size for the % display; overrides auto-detect",
      .kind = CONFIG_KIND_TOKENS, .editable = 1},
-    {.key = "display_width", .env_var = "HAX_DISPLAY_WIDTH", .default_value = "auto",
+    {.key = "display_width", .env_var = "HAX_DISPLAY_WIDTH", .default_value = HAX_DEFAULT_DISPLAY_WIDTH,
      .description = "Content width: auto uses full width through 110 columns and 100 beyond that; "
                     "terminal always uses full width; a number sets an exact width",
      .choices = "auto|terminal", .example = "100", .kind = CONFIG_KIND_INT, .min = 20,
      .editable = 1},
-    {.key = "notify", .env_var = "HAX_NOTIFY", .default_value = "auto",
-     .description = "Desktop-notification style: auto, bel, osc9, off "
-                    "(auto detects from the terminal)",
-     .choices = "auto|bel|osc9|off", .editable = 1},
-    {.key = "theme", .env_var = "HAX_THEME", .default_value = "auto",
+    {.key = "theme", .env_var = "HAX_THEME", .default_value = HAX_DEFAULT_THEME,
      .description = "Color theme: auto, dark, light, ansi, off (auto detects from the terminal)",
      .choices = "auto|dark|light|ansi|off", .editable = 1},
-    {.key = "tint", .env_var = "HAX_TINT", .default_value = "teal",
+    {.key = "tint", .env_var = "HAX_TINT", .default_value = HAX_DEFAULT_TINT,
      .description = "Identity tint for model output; an active preset's own tint wins until set "
                     "here. Ignored by the ansi and off themes",
      .choices = "teal|violet|rose|sage", .editable = 1},
 
     /* behavior */
-    {.key = "keep_awake", .env_var = "HAX_KEEP_AWAKE", .default_value = "1",
-     .description = "Inhibit idle system sleep while a turn is running (display may still blank)",
-     .choices = CONFIG_CHOICES_BOOL, .editable = 1},
     {.key = "compact.auto", .env_var = "HAX_COMPACT_AUTO", .default_value = "1",
      .description = "Auto-summarize history when it nears the context window "
                     "(manual /compact still works)",
@@ -1170,55 +1160,13 @@ static void set_nested(json_t *root, const char *key, const char *value)
 
 static int write_json_atomic(const char *path, json_t *object)
 {
-    int result = -1;
-    int fd = -1;
-    FILE *file = NULL;
-    char *temp_path = NULL;
-
-    /* Renaming onto config.json would replace a symlink instead of updating its target. */
-    char *destination = fs_resolve_link_target(path);
-    if (!destination)
+    char *body = json_dumps(object, JSON_INDENT(2) | JSON_PRESERVE_ORDER);
+    if (!body)
         return -1;
-
-    char *directory = xstrdup(destination);
-    fs_mkdir_p(dirname(directory));
-    free(directory);
-
-    temp_path = xasprintf("%s.tmp.XXXXXX", destination);
-    fd = mkstemp(temp_path);
-    if (fd < 0)
-        goto out;
-
-    /* fchmod preserves the 0600 contract even under a restrictive process umask. */
-    if (fchmod(fd, 0600) != 0)
-        goto out;
-
-    file = fdopen(fd, "w");
-    if (!file)
-        goto out;
-    fd = -1;
-
-    if (json_dumpf(object, file, JSON_INDENT(2) | JSON_PRESERVE_ORDER) != 0)
-        goto out;
-    if (fclose(file) != 0) {
-        file = NULL;
-        goto out;
-    }
-    file = NULL;
-
-    if (rename(temp_path, destination) != 0)
-        goto out;
-    result = 0;
-
-out:
-    if (file)
-        fclose(file);
-    if (fd >= 0)
-        close(fd);
-    if (result != 0 && temp_path)
-        unlink(temp_path);
-    free(temp_path);
-    free(destination);
+    char *with_newline = xasprintf("%s\n", body);
+    free(body);
+    int result = fs_write_atomic(path, with_newline, strlen(with_newline), 1);
+    free(with_newline);
     return result;
 }
 

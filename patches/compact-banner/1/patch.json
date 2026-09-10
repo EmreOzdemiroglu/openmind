@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "feature": "compact-banner",
+  "revision": 1,
+  "base_commit": "95e0179c00266601b2c8345981e98895b1250699",
+  "diff": "hax-compact-banner-20260905-95e0179.diff",
+  "sha256": "21b43358ea5bb86d18790f4d2283ce371ecf79c146a6f83a7c70d34bc34d098d",
+  "requires": [],
+  "conflicts": [],
+  "status": "active"
+}

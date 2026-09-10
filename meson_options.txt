@@ -1,0 +1,6 @@
+option(
+    'personal_defaults',
+    type: 'string',
+    value: '',
+    description: 'Path to custom personal display defaults header (e.g. config.h)',
+)

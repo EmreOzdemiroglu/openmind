@@ -1377,7 +1377,6 @@ static void test_loop_injects_finished_task_note(void)
 int main(void)
 {
     /* Loop tests exercise orchestration, not the platform inhibitor helper. */
-    config_set_override("keep_awake", "0");
     test_loop_turn_collects_success();
     test_loop_passes_conversation_id_to_provider();
     test_partial_error_is_preserved();
