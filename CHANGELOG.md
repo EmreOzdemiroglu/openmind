@@ -38,6 +38,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
   truncation now keep their suffix, such as a read's line range, like the full header does.
 ### Added
 
+- Support building and verifying prepared source trees (`scripts/patch.sh build|verify DEST`)
+  with tamper checking against `receipt.json` and output recorded in `build-result.json`.
 - Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
   producing an isolated source tree and verifiable `receipt.json` files inventory.
 - Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
@@ -65,6 +67,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support building and verifying prepared source trees (`scripts/patch.sh build|verify DEST`)
+  with tamper checking against `receipt.json` and output recorded in `build-result.json`.
 - Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
   producing an isolated source tree and verifiable `receipt.json` files inventory.
 - Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
@@ -141,6 +145,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support building and verifying prepared source trees (`scripts/patch.sh build|verify DEST`)
+  with tamper checking against `receipt.json` and output recorded in `build-result.json`.
 - Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
   producing an isolated source tree and verifiable `receipt.json` files inventory.
 - Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
@@ -220,6 +226,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support building and verifying prepared source trees (`scripts/patch.sh build|verify DEST`)
+  with tamper checking against `receipt.json` and output recorded in `build-result.json`.
 - Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
   producing an isolated source tree and verifiable `receipt.json` files inventory.
 - Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying
@@ -275,6 +283,8 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Added
 
+- Support building and verifying prepared source trees (`scripts/patch.sh build|verify DEST`)
+  with tamper checking against `receipt.json` and output recorded in `build-result.json`.
 - Support preparing locked patched source (`scripts/patch.sh prepare RECIPE --output DEST`)
   producing an isolated source tree and verifiable `receipt.json` files inventory.
 - Support locked custom-build recipes (`scripts/patch.sh recipe-check`) specifying

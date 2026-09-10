@@ -5,7 +5,7 @@ set -eu
 cd "$(dirname "$0")/.."
 
 usage() {
-    echo 'usage: scripts/patch.sh list | catalog-check | inspect <selector> | recipe-check <recipe> | prepare <recipe> --output <dest> | check|apply|reverse <selector>' >&2
+    echo 'usage: scripts/patch.sh list | catalog-check | inspect <selector> | recipe-check <recipe> | prepare <recipe> --output <dest> | build <dest> | verify <dest> | check|apply|reverse <selector>' >&2
     exit 2
 }
 
@@ -44,6 +44,11 @@ prepare)
         exit 1
     fi
     python3 scripts/patch_catalog.py prepare "$@"
+    exit 0
+    ;;
+build|verify)
+    [ "$#" -eq 1 ] || usage
+    python3 scripts/patch_catalog.py "$action" "$1"
     exit 0
     ;;
 inspect)

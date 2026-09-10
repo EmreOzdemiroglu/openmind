@@ -184,3 +184,16 @@ scripts/patch.sh prepare path/to/recipe.json --output /path/to/destination
 This exports the pinned base commit from Git, applies patches sequentially into an isolated
 staging directory, writes a `receipt.json` files inventory, and moves the final result to the
 destination directory without modifying the caller's working tree or index.
+
+## Building and verifying prepared source
+
+Build or verify a prepared tree with fixed project commands:
+
+```sh
+scripts/patch.sh build /path/to/destination
+scripts/patch.sh verify /path/to/destination
+```
+
+`build` compiles the prepared source. `verify` compiles, validates personal defaults (if
+configured), and runs tests. Upon completion, a `build-result.json` artifact records the exact
+inputs, compiler/tool versions, and phase outcomes.

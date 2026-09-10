@@ -613,6 +613,105 @@ def prepare_recipe(recipe_path: Path, dest_dir: Path, repo_root: Path) -> Path:
         raise
 
 
+def verify_inventory(source_dir: Path, expected_files: list[dict]) -> None:
+    # Check that every expected file is present and matches
+    seen = set()
+    for item in expected_files:
+        path = item["path"]
+        seen.add(path)
+        actual_path = source_dir / path
+        if not actual_path.exists():
+            raise CatalogError(f"prepared source is modified: missing '{path}'")
+        if item["kind"] == "symlink":
+            if not actual_path.is_symlink() or os.readlink(actual_path) != item["target"]:
+                raise CatalogError(f"prepared source is modified: symlink mismatch for '{path}'")
+        elif item["kind"] == "file":
+            if not actual_path.is_file() or actual_path.is_symlink():
+                raise CatalogError(f"prepared source is modified: file mismatch for '{path}'")
+            act_sha = hashlib.sha256(actual_path.read_bytes()).hexdigest()
+            if act_sha != item["sha256"]:
+                raise CatalogError(f"prepared source is modified: content mismatch for '{path}'")
+
+    # Check for unexpected files in source_dir (ignoring build/)
+    for actual in source_dir.rglob("*"):
+        rel = actual.relative_to(source_dir).as_posix()
+        if rel == "build" or rel.startswith("build/"):
+            continue
+        if actual.is_file() or actual.is_symlink():
+            if rel not in seen:
+                raise CatalogError(f"prepared source is modified: unexpected file '{rel}'")
+
+
+def build_or_verify_prepared(dest_dir: Path, do_verify: bool = False) -> dict:
+    dest = dest_dir.resolve()
+    receipt_file = dest / "receipt.json"
+    if not receipt_file.is_file():
+        raise CatalogError(f"missing receipt.json in '{dest}'")
+
+    try:
+        receipt = json.loads(receipt_file.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise CatalogError(f"malformed receipt.json in '{dest}': {e}")
+
+    source_dir = dest / "source"
+    if not source_dir.is_dir():
+        raise CatalogError(f"missing source directory in '{dest}'")
+
+    # Verify inventory before proceeding
+    verify_inventory(source_dir, receipt.get("files", []))
+
+    # Tool versions
+    cc_ver = subprocess.run(["cc", "--version"], capture_output=True, text=True).stdout.splitlines()[0] if shutil.which("cc") else "none"
+    meson_ver = subprocess.run(["meson", "--version"], capture_output=True, text=True).stdout.strip() if shutil.which("meson") else "none"
+    ninja_ver = subprocess.run(["ninja", "--version"], capture_output=True, text=True).stdout.strip() if shutil.which("ninja") else "none"
+
+    has_defaults = receipt.get("defaults") is not None
+    meson_cmd = ["meson", "setup", "build"]
+    if has_defaults:
+        meson_cmd.extend(["-Dpersonal_defaults=config.h"])
+
+    build_dir = source_dir / "build"
+    if not build_dir.exists():
+        res = subprocess.run(meson_cmd, cwd=source_dir, capture_output=True, text=True)
+        if res.returncode != 0:
+            raise CatalogError(f"meson setup failed:\n{res.stderr}")
+
+    phases = {}
+    # Build phase
+    compile_res = subprocess.run(["meson", "compile", "-C", "build"], cwd=source_dir, capture_output=True, text=True)
+    phases["build"] = "ok" if compile_res.returncode == 0 else "failed"
+    if compile_res.returncode != 0:
+        raise CatalogError(f"build failed:\n{compile_res.stderr}")
+
+    if do_verify:
+        if has_defaults:
+            check_def = subprocess.run(["make", "check-defaults"], cwd=source_dir, capture_output=True, text=True)
+            phases["check_defaults"] = "ok" if check_def.returncode == 0 else "failed"
+            if check_def.returncode != 0:
+                raise CatalogError(f"check-defaults failed:\n{check_def.stderr}")
+
+        test_res = subprocess.run(["meson", "test", "-C", "build"], cwd=source_dir, capture_output=True, text=True)
+        phases["test"] = "ok" if test_res.returncode == 0 else "failed"
+        if test_res.returncode != 0:
+            raise CatalogError(f"test failed:\n{test_res.stderr}")
+
+    result_record = {
+        "schema": 1,
+        "base_commit": receipt["base_commit"],
+        "patches": receipt["patches"],
+        "defaults": receipt["defaults"],
+        "tools": {
+            "compiler": cc_ver,
+            "meson": meson_ver,
+            "ninja": ninja_ver,
+        },
+        "phases": phases,
+        "status": "success",
+    }
+    (dest / "build-result.json").write_text(json.dumps(result_record, indent=2), encoding="utf-8")
+    return result_record
+
+
 def main():
     parser = argparse.ArgumentParser(description="Patch catalog manager")
     sub = parser.add_subparsers(dest="subcommand", required=True)
@@ -624,6 +723,10 @@ def main():
     prep = sub.add_parser("prepare")
     prep.add_argument("recipe", help="path to recipe JSON file")
     prep.add_argument("--output", required=True, help="destination directory")
+    bld = sub.add_parser("build")
+    bld.add_argument("dest", help="prepared destination directory")
+    ver = sub.add_parser("verify")
+    ver.add_argument("dest", help="prepared destination directory")
     insp = sub.add_parser("inspect")
     insp.add_argument("selector", help="feature or feature@revision")
     res = sub.add_parser("resolve")
@@ -653,6 +756,12 @@ def main():
         elif args.subcommand == "prepare":
             dest = prepare_recipe(Path(args.recipe), Path(args.output), root)
             print(f"prepare OK: {dest}")
+        elif args.subcommand == "build":
+            rec = build_or_verify_prepared(Path(args.dest), do_verify=False)
+            print(f"build OK: {args.dest}")
+        elif args.subcommand == "verify":
+            rec = build_or_verify_prepared(Path(args.dest), do_verify=True)
+            print(f"verify OK: {args.dest}")
         elif args.subcommand == "inspect":
             entry, diff_path = resolve_selector(catalog, args.selector)
             print(f"Feature:     {entry['feature']}")

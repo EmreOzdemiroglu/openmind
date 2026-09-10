@@ -654,3 +654,39 @@ class PrepareTests(unittest.TestCase):
 
         # Destination already exists on second run
         self.run_prepare(rpath, dest, success=False)
+
+
+class BuildVerifyTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="hax-bldver-test-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / "scripts").mkdir()
+        shutil.copy2(ROOT / "scripts/patch.sh", self.root / "scripts/patch.sh")
+        shutil.copy2(ROOT / "scripts/patch_catalog.py", self.root / "scripts/patch_catalog.py")
+
+        receipt = {
+            "schema": 1,
+            "base_commit": "0" * 40,
+            "patches": [],
+            "defaults": None,
+            "files": [
+                {"path": "file.txt", "kind": "file", "mode": "0644", "sha256": hashlib.sha256(b"content\n").hexdigest()}
+            ]
+        }
+        dest = self.root / "prepared"
+        dest.mkdir()
+        (dest / "receipt.json").write_text(json.dumps(receipt, indent=2))
+        (dest / "source").mkdir()
+        (dest / "source/file.txt").write_text("content\n")
+        self.dest = dest
+
+    def test_tampered_source_rejected(self):
+        # Tamper with file
+        (self.dest / "source/file.txt").write_text("tampered\n")
+        res = subprocess.run(
+            [SHELL, str(self.root / "scripts/patch.sh"), "build", str(self.dest)],
+            capture_output=True, text=True
+        )
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("prepared source is modified", res.stderr)
