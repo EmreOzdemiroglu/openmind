@@ -7,8 +7,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
+import shlex
 import subprocess
 import sys
 
@@ -64,7 +65,10 @@ def load_catalog(root: Path, check_commits: bool = True) -> dict[str, dict[int, 
             except Exception as e:
                 raise CatalogError(f"malformed JSON in '{patch_json}': {e}")
 
-            validate_entry(data, patch_json, feature_name, revision, check_commits=check_commits)
+            validate_entry(
+                data, patch_json, feature_name, revision,
+                check_commits=check_commits, repo_root=root,
+            )
             catalog[feature_name][revision] = data
 
     validate_catalog_consistency(catalog)
@@ -72,12 +76,16 @@ def load_catalog(root: Path, check_commits: bool = True) -> dict[str, dict[int, 
 
 
 def validate_entry(
-    data: dict, path: Path, feature: str, revision: int, check_commits: bool = True
+    data: dict, path: Path, feature: str, revision: int, check_commits: bool = True,
+    repo_root: Path | None = None,
 ) -> None:
     required_keys = {
         "schema", "feature", "revision", "base_commit",
         "diff", "sha256", "requires", "conflicts", "status"
     }
+    if not isinstance(data, dict):
+        raise CatalogError(f"in '{path}': entry must be a JSON object")
+
     if set(data.keys()) != required_keys:
         missing = required_keys - set(data.keys())
         extra = set(data.keys()) - required_keys
@@ -88,13 +96,13 @@ def validate_entry(
             msg += f" unexpected keys {sorted(extra)}"
         raise CatalogError(msg)
 
-    if data["schema"] != 1:
+    if isinstance(data["schema"], bool) or not isinstance(data["schema"], int) or data["schema"] != 1:
         raise CatalogError(f"in '{path}': unsupported schema {data['schema']}, expected 1")
 
     if data["feature"] != feature:
         raise CatalogError(f"in '{path}': feature '{data['feature']}' does not match directory '{feature}'")
 
-    if data["revision"] != revision:
+    if isinstance(data["revision"], bool) or not isinstance(data["revision"], int) or data["revision"] != revision:
         raise CatalogError(f"in '{path}': revision {data['revision']} does not match directory {revision}")
 
     if not isinstance(data["base_commit"], str) or not COMMIT_RE.fullmatch(data["base_commit"]):
@@ -103,7 +111,7 @@ def validate_entry(
     if check_commits:
         res = subprocess.run(
             ["git", "cat-file", "-e", f"{data['base_commit']}^{{commit}}"],
-            capture_output=True,
+            capture_output=True, cwd=repo_root or Path.cwd(),
         )
         if res.returncode != 0:
             raise CatalogError(f"in '{path}': base_commit '{data['base_commit']}' does not resolve to a local commit")
@@ -128,6 +136,8 @@ def validate_entry(
         raise CatalogError(
             f"in '{path}': digest mismatch for '{data['diff']}': expected {data['sha256']}, got {actual_digest}"
         )
+
+    validate_diff(diff_file, repo_root or Path.cwd())
 
     if not isinstance(data["requires"], list):
         raise CatalogError(f"in '{path}': requires must be a list")
@@ -191,6 +201,150 @@ def validate_catalog_consistency(catalog: dict[str, dict[int, dict]]) -> None:
                 raise CatalogError(f"patch '{sel}' conflicts with itself")
 
 
+def _diff_path(raw_path: str, prefix: str, path: Path) -> str | None:
+    if raw_path == "/dev/null":
+        return None
+    if not raw_path.startswith(prefix):
+        raise CatalogError(f"in '{path}': diff path '{raw_path}' has an unexpected prefix")
+    name = raw_path[len(prefix):]
+    posix_path = PurePosixPath(name)
+    if (not name or name.startswith("/") or "\\" in name or "\x00" in name or
+            "." in posix_path.parts or ".." in posix_path.parts):
+        raise CatalogError(f"in '{path}': unsafe diff path '{raw_path}'")
+    return name
+
+
+def _diff_header_paths(line: str, path: Path) -> tuple[str, str]:
+    payload = line[len("diff --git "):]
+    try:
+        paths = shlex.split(payload, posix=True)
+    except ValueError as e:
+        paths = []
+        parse_error = e
+    else:
+        parse_error = None
+    if len(paths) != 2:
+        separator = payload.find(" b/")
+        if payload.startswith("a/") and separator > 0:
+            paths = [payload[:separator], payload[separator + 1:]]
+    if len(paths) != 2:
+        if parse_error is not None:
+            raise CatalogError(f"in '{path}': malformed diff header: {parse_error}")
+        raise CatalogError(f"in '{path}': diff header must name exactly two paths")
+    return paths
+
+
+def _file_header_path(text: str, prefix: str, path: Path) -> str | None:
+    if text.startswith('"'):
+        try:
+            paths = shlex.split(text, posix=True)
+        except ValueError as e:
+            raise CatalogError(f"in '{path}': malformed file header: {e}")
+    else:
+        paths = [text]
+    if len(paths) != 1:
+        raise CatalogError(f"in '{path}': file header must name exactly one path")
+    return _diff_path(paths[0], prefix, path)
+
+
+def validate_diff(diff_file: Path, repo_root: Path) -> list[str]:
+    """Validate the restricted Schema 1 diff format before Git can mutate files."""
+    try:
+        lines = diff_file.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError:
+        raise CatalogError(f"in '{diff_file}': diff must be UTF-8 text")
+
+    blocks: list[list[str]] = []
+    current: list[str] | None = None
+    for line in lines:
+        if line.startswith("diff --git "):
+            current = [line]
+            blocks.append(current)
+        elif current is not None:
+            current.append(line)
+
+    if not blocks:
+        raise CatalogError(f"in '{diff_file}': diff has no git file entries")
+
+    touched: list[str] = []
+    for block in blocks:
+        old_raw, new_raw = _diff_header_paths(block[0], diff_file)
+        old_name = _diff_path(old_raw, "a/", diff_file)
+        new_name = _diff_path(new_raw, "b/", diff_file)
+        if old_name is not None and new_name is not None and old_name != new_name:
+            raise CatalogError(f"in '{diff_file}': renames and copies are not supported")
+        name = new_name or old_name
+        if name is None:
+            raise CatalogError(f"in '{diff_file}': diff entry has no repository path")
+        touched.append(name)
+
+        saw_old_header = False
+        saw_new_header = False
+        in_hunk = False
+        for line in block[1:]:
+            if line in ("GIT binary patch",) or line.startswith("Binary files "):
+                raise CatalogError(f"in '{diff_file}': binary payloads are not supported for '{name}'")
+            if line.startswith(("literal ", "delta ")):
+                raise CatalogError(f"in '{diff_file}': binary payloads are not supported for '{name}'")
+
+            mode_match = re.fullmatch(r"(?:old mode|new mode|new file mode|deleted file mode) ([0-9]+)", line)
+            if mode_match:
+                mode = mode_match.group(1)
+                if mode not in ("100644", "100755"):
+                    raise CatalogError(f"in '{diff_file}': mode {mode} is not supported for '{name}'")
+                continue
+            if line.startswith("index "):
+                index_parts = line.split()
+                if len(index_parts) == 3 and index_parts[2] not in ("100644", "100755"):
+                    raise CatalogError(
+                        f"in '{diff_file}': mode {index_parts[2]} is not supported for '{name}'"
+                    )
+                if len(index_parts) not in (2, 3):
+                    raise CatalogError(f"in '{diff_file}': malformed index metadata for '{name}'")
+                continue
+            if line.startswith("--- "):
+                raw_header = line[4:].split("\t", 1)[0]
+                header_name = _file_header_path(raw_header, "a/", diff_file)
+                if header_name is not None and header_name != old_name:
+                    raise CatalogError(f"in '{diff_file}': old file header does not match '{name}'")
+                saw_old_header = True
+                continue
+            if line.startswith("+++ "):
+                raw_header = line[4:].split("\t", 1)[0]
+                header_name = _file_header_path(raw_header, "b/", diff_file)
+                if header_name is not None and header_name != new_name:
+                    raise CatalogError(f"in '{diff_file}': new file header does not match '{name}'")
+                saw_new_header = True
+                continue
+            if line.startswith("@@"):
+                in_hunk = True
+                continue
+            if in_hunk or not line:
+                continue
+            raise CatalogError(f"in '{diff_file}': unsupported metadata for '{name}': {line}")
+
+        if saw_old_header != saw_new_header:
+            raise CatalogError(f"in '{diff_file}': text entry for '{name}' needs both file headers")
+
+    validate_repo_paths(repo_root, touched, diff_file)
+    return touched
+
+
+def validate_repo_paths(repo_root: Path, paths: list[str], diff_file: Path) -> None:
+    for name in paths:
+        current = repo_root
+        parts = PurePosixPath(name).parts
+        for part in parts[:-1]:
+            current /= part
+            if current.is_symlink():
+                raise CatalogError(
+                    f"in '{diff_file}': path '{name}' has symlink ancestor '{current.relative_to(repo_root)}'"
+                )
+        target = repo_root.joinpath(*parts)
+        if target.is_symlink():
+            raise CatalogError(f"in '{diff_file}': path '{name}' is a symlink")
+
+
 def resolve_selector(catalog: dict[str, dict[int, dict]], selector_str: str) -> tuple[dict, Path]:
     feature, rev = parse_selector(selector_str)
     if feature not in catalog:
@@ -211,6 +365,28 @@ def resolve_selector(catalog: dict[str, dict[int, dict]], selector_str: str) -> 
     patch_dir = Path("patches") / entry["feature"] / str(entry["revision"])
     diff_path = patch_dir / entry["diff"]
     return entry, diff_path
+
+
+def recorded_base(root: Path, selector: str) -> str | None:
+    """Best-effort raw lookup used to preserve the base in validation errors."""
+    try:
+        feature, revision = parse_selector(selector)
+    except CatalogError:
+        return None
+    feature_dir = root / "patches" / feature
+    candidates = [feature_dir / str(revision)] if revision is not None else sorted(feature_dir.glob("[1-9]*"))
+    for revision_dir in candidates:
+        metadata = revision_dir / "patch.json"
+        try:
+            data = json.loads(metadata.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if revision is None and data.get("status") != "active":
+            continue
+        base = data.get("base_commit")
+        if isinstance(base, str):
+            return base
+    return None
 
 
 def compare_catalogs(old_cat: dict[str, dict[int, dict]], new_cat: dict[str, dict[int, dict]]) -> None:
@@ -239,6 +415,10 @@ def main():
     insp.add_argument("selector", help="feature or feature@revision")
     res = sub.add_parser("resolve")
     res.add_argument("selector", help="feature or feature@revision")
+    pre = sub.add_parser("preflight")
+    pre.add_argument("selector", help="feature or feature@revision")
+    base = sub.add_parser("base")
+    base.add_argument("selector", help="feature or feature@revision")
 
     args = parser.parse_args()
     root = Path.cwd()
@@ -267,9 +447,24 @@ def main():
         elif args.subcommand == "resolve":
             _, diff_path = resolve_selector(catalog, args.selector)
             print(diff_path)
+        elif args.subcommand == "preflight":
+            entry, diff_path = resolve_selector(catalog, args.selector)
+            validate_diff(diff_path, root)
+            print(diff_path)
+        elif args.subcommand == "base":
+            entry, _ = resolve_selector(catalog, args.selector)
+            print(entry["base_commit"])
 
     except CatalogError as e:
-        print(f"error: {e}", file=sys.stderr)
+        selector = getattr(args, "selector", None)
+        if selector is not None:
+            base = recorded_base(root, selector)
+            context = f"artifact '{selector}'"
+            if base is not None:
+                context += f" (recorded base '{base}')"
+            print(f"error: {context}: {e}", file=sys.stderr)
+        else:
+            print(f"error: {e}", file=sys.stderr)
         sys.exit(1)
 
 

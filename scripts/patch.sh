@@ -45,13 +45,15 @@ fi
 [ "$#" -eq 1 ] || usage
 selector=$1
 
-# Resolve selector to diff path via patch_catalog.py
-patch_diff=$(python3 scripts/patch_catalog.py resolve "$selector")
+# Validate the selected artifact and its paths before asking Git to inspect or mutate files.
+patch_diff=$(python3 scripts/patch_catalog.py preflight "$selector")
+patch_base=$(python3 scripts/patch_catalog.py base "$selector")
+head_commit=$(git rev-parse HEAD 2>/dev/null || printf '%s' unavailable)
+compatibility="recorded base $patch_base; current HEAD $head_commit; manual compatibility"
 
-# git apply checks every hunk before writing; never use --reject here.
 case $action in
 check) git apply --check "$patch_diff" ;;
 apply) git apply "$patch_diff" ;;
 reverse) git apply --reverse "$patch_diff" ;;
 esac
-printf '%s %s OK\n' "$action" "$selector"
+printf '%s %s OK (%s checked)\n' "$action" "$selector" "$compatibility"

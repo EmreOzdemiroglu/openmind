@@ -22,6 +22,9 @@ notes (see [docs/releasing.md](docs/releasing.md)).
 
 ### Fixed
 
+- Manual catalog patch operations now validate the selected artifact and restricted text diff
+  format before using Git's working-tree-only apply semantics, preserving staged and unrelated
+  changes while reporting recorded-base compatibility.
 - Patch workflow tests now require Git in CI, while `scripts/patch.sh list` remains usable in
   Git-less source snapshots and other patch actions report a clear prerequisite error.
 - `config.json` and `state.json` are now written with a trailing newline, matching `auth.json`

@@ -40,7 +40,10 @@ make
 `check` checks all hunks without modifying source. `apply` changes the working tree without
 staging files or creating commits. If a hunk conflicts, Git rejects the patch without applying
 its other hunks. The helper does not use fuzzy conflict resolution or leave `.rej` files.
-Unrelated local edits are preserved. Inspect `git diff` before committing your custom build.
+Unrelated local edits are preserved. The recorded base commit is reported for compatibility only;
+manual mode does not require `HEAD` to equal that commit and does not reproduce dependencies.
+Apply and reverse dependencies explicitly, one selected artifact at a time. Inspect `git diff`
+before committing your custom build.
 
 The `check`, `apply`, and `reverse` actions require Git and a POSIX shell; `list` only
 requires the shell. Python is used by the development tests and catalog validation. To use a diff
@@ -92,6 +95,10 @@ Keep your customization commits on a personal branch. Apply dependencies first, 
 patches, one command at a time. Record that order in your branch's documentation. A sequence of
 commands is not a transaction: earlier successful patches remain if a later patch fails.
 The helper does not track installed patches or resolve feature dependencies.
+
+Manual commands therefore apply and reverse only the artifact named by each command; `requires`
+is descriptive and does not trigger additional operations. A future recipe-based path will
+enforce the complete selected dependency and conflict set as one validated selection.
 
 To remove a feature, reverse dependent patches first, then rebuild:
 
